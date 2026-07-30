@@ -11,14 +11,13 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::io::Cursor;
 
-#[derive(Default)]
-struct Ctx {
+struct Ctx<'a> {
     rels: HashMap<String, String>,
-    numbering: HashMap<String, Vec<LevelDef>>,
-    styles: Styles,
+    numbering: &'a HashMap<String, Vec<LevelDef>>,
+    styles: &'a Styles,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 struct Styles {
     headings: HashMap<String, u8>,
     /// Resolved run formatting of character styles (w:rStyle).
@@ -54,8 +53,8 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
             .and_then(|s| parse_xml(&s).ok())
             .map(|t| parse_rels(&t))
             .unwrap_or_default(),
-        numbering: numbering.clone(),
-        styles: styles.clone(),
+        numbering: &numbering,
+        styles: &styles,
     };
 
     let ctx = part_ctx(&mut zip, "word/_rels/document.xml.rels");
@@ -306,7 +305,7 @@ fn parse_paragraph<'a>(p: &'a Element, ctx: &'a Ctx) -> (ParaKind, Vec<Inline>, 
 }
 
 struct InlineWalker<'a> {
-    ctx: &'a Ctx,
+    ctx: &'a Ctx<'a>,
     base: Style,
     out: Vec<Inline>,
     fields: Vec<FieldFrame>,
