@@ -1,4 +1,4 @@
-//! Spreadsheets (xlsx, xlsm, xlsb, xls, ods) via calamine.
+//! Excel spreadsheets (xlsx, xlsm, xlsb, xls) via calamine.
 
 use crate::ir::{Block, Cell, Document, Inline, Table, inlines_are_empty};
 use crate::support::text::clean_text;

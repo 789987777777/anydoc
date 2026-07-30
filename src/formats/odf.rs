@@ -1,4 +1,5 @@
-//! OpenDocument Text (.odt).
+//! OpenDocument Text (.odt) and Spreadsheet (.ods).
+//! Spreadsheet cells keep their display text, so number formats are as rendered.
 
 use crate::ir::*;
 use crate::support::text::{clean_text, collapse_ws};
@@ -29,14 +30,41 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let tree = parse_xml(&content)?;
     collect_styles(&tree, &mut ctx);
 
-    let text = tree
+    let body = tree
         .find("document-content")
         .and_then(|d| d.find("body"))
-        .and_then(|b| b.find("text"))
-        .context("content.xml has no office:text body")?;
+        .context("content.xml has no office:body")?;
 
-    let blocks = parse_container(text, &ctx);
+    let blocks = if let Some(text) = body.find("text") {
+        parse_container(text, &ctx)
+    } else if let Some(sheet) = body.find("spreadsheet") {
+        parse_spreadsheet(sheet, &ctx)
+    } else {
+        anyhow::bail!("content.xml has no office:text or office:spreadsheet body");
+    };
     Ok(Document { blocks, notes: ctx.notes.into_inner() })
+}
+
+fn parse_spreadsheet(sheet: &Element, ctx: &Ctx) -> Vec<Block> {
+    let tables: Vec<&Element> = sheet.child_elems().filter(|e| e.name == "table").collect();
+    let multi_sheet = tables.len() > 1;
+    let mut blocks = Vec::new();
+    for table in tables {
+        let mut parsed = parse_table(table, ctx);
+        if parsed.is_empty() {
+            continue;
+        }
+        for block in &mut parsed {
+            if let Block::Table(t) = block {
+                t.has_header = true;
+            }
+        }
+        if multi_sheet && let Some(name) = table.attr("name") {
+            blocks.push(Block::Heading { level: 2, content: vec![Inline::plain(name)] });
+        }
+        blocks.append(&mut parsed);
+    }
+    blocks
 }
 
 fn collect_styles(tree: &Element, ctx: &mut Ctx) {
@@ -180,7 +208,17 @@ fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
                     rows.push(parse_row(row, ctx));
                 }
             }
-            "table-row" => rows.push(parse_row(child, ctx)),
+            "table-row" => {
+                let repeat: usize = child
+                    .attr("number-rows-repeated")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1)
+                    .clamp(1, 100);
+                let row = parse_row(child, ctx);
+                for _ in 0..repeat {
+                    rows.push(row.clone());
+                }
+            }
             "table-rows" | "table-row-group" => {
                 for row in child.find_all("table-row") {
                     rows.push(parse_row(row, ctx));
@@ -218,8 +256,6 @@ fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
                 let span: usize =
                     cell.attr("number-columns-spanned").and_then(|v| v.parse().ok()).unwrap_or(1);
                 let blocks = parse_container(cell, ctx);
-                let is_empty = blocks.iter().all(block_is_empty);
-                let repeat = if is_empty { 1 } else { repeat };
                 for _ in 0..repeat {
                     cells.push(Cell { blocks: blocks.clone() });
                     for _ in 1..span.max(1) {

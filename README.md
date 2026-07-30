@@ -61,7 +61,7 @@ src/
   support/      shared infrastructure (XML DOM, HTML converter, text cleanup, field codes)
 ```
 
-The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB, piece table, CHPX/PAPX formatting runs, stylesheet, footnote/endnote subdocuments). Spreadsheets use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine).
+The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB, piece table, CHPX/PAPX formatting runs, stylesheet, footnote/endnote subdocuments). Excel formats use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine); ODS is parsed natively so cells keep their formatted display text.
 
 ## Development
 
