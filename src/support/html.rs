@@ -98,9 +98,7 @@ impl Builder {
                 self.flush_paragraph();
                 self.blocks.push(Block::Rule);
             }
-            "div" | "section" | "article" | "aside" | "main" | "nav" | "header" | "footer"
-            | "figure" | "center" | "details" | "summary" | "li" | "dl" | "dt" | "dd"
-            | "figcaption" | "body" => {
+            name if is_container_tag(name) => {
                 if has_block_children(elem) {
                     self.flush_paragraph();
                     self.walk_children(elem, style);
@@ -135,20 +133,7 @@ impl Builder {
                     }
                 }
             }
-            _ => {
-                for node in &elem.children {
-                    match node {
-                        Node::Text(t) => self.push_text(t, style),
-                        Node::Elem(e) => {
-                            if is_block_tag(&e.name) {
-                                self.walk_elem(e, style);
-                            } else {
-                                self.walk_inline(e, style);
-                            }
-                        }
-                    }
-                }
-            }
+            _ => self.walk_children(elem, style),
         }
     }
 }
@@ -203,24 +188,11 @@ fn block_text(block: &Block) -> String {
     }
 }
 
-fn is_block_tag(name: &str) -> bool {
+/// Elements that only group other content, walked through transparently.
+fn is_container_tag(name: &str) -> bool {
     matches!(
         name,
-        "p" | "div"
-            | "ul"
-            | "ol"
-            | "li"
-            | "table"
-            | "blockquote"
-            | "pre"
-            | "hr"
-            | "h1"
-            | "h2"
-            | "h3"
-            | "h4"
-            | "h5"
-            | "h6"
-            | "section"
+        "div" | "section"
             | "article"
             | "aside"
             | "main"
@@ -230,12 +202,23 @@ fn is_block_tag(name: &str) -> bool {
             | "figure"
             | "figcaption"
             | "center"
+            | "details"
+            | "summary"
+            | "li"
             | "dl"
             | "dt"
             | "dd"
-            | "details"
-            | "summary"
+            | "body"
     )
+}
+
+fn is_block_tag(name: &str) -> bool {
+    is_container_tag(name)
+        || matches!(
+            name,
+            "p" | "ul" | "ol" | "table" | "blockquote" | "pre" | "hr" | "h1" | "h2" | "h3" | "h4"
+                | "h5" | "h6"
+        )
 }
 
 fn has_block_children(elem: &Element) -> bool {
