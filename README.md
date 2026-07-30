@@ -70,3 +70,7 @@ cargo test
 ```
 
 Serializer behavior (escaping, emphasis, tables, footnotes) is covered by unit tests in `src/markdown.rs`. A local corpus of real-world documents in `samples/` (not committed) is used for regression and benchmark runs via the `convert` example.
+
+## License
+
+[MIT](LICENSE)
