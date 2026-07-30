@@ -72,11 +72,8 @@ impl Element {
 }
 
 fn local_name(qname: &[u8]) -> String {
-    let name = String::from_utf8_lossy(qname);
-    match name.rsplit_once(':') {
-        Some((_, local)) => local.to_string(),
-        None => name.into_owned(),
-    }
+    let start = qname.iter().rposition(|&b| b == b':').map_or(0, |i| i + 1);
+    String::from_utf8_lossy(&qname[start..]).into_owned()
 }
 
 fn start_to_element(e: &BytesStart, reader: &Reader<&[u8]>) -> Element {

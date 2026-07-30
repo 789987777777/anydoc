@@ -183,14 +183,8 @@ fn extract_text(word_doc: &[u8], pieces: &[Piece], ccp_text: usize) -> (Vec<char
             let Some(bytes) = word_doc.get(piece.fc..piece.fc + len) else {
                 continue;
             };
-            for (i, &b) in bytes.iter().enumerate() {
-                let c = if b < 0x80 {
-                    b as char
-                } else {
-                    let buf = [b];
-                    let (s, _, _) = encoding_rs::WINDOWS_1252.decode(&buf);
-                    s.chars().next().unwrap_or('\u{fffd}')
-                };
+            let (s, _) = encoding_rs::WINDOWS_1252.decode_without_bom_handling(bytes);
+            for (i, c) in s.chars().enumerate() {
                 chars.push(c);
                 fcs.push((piece.fc + i) as u32);
             }

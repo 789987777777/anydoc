@@ -232,8 +232,8 @@ impl<'a> Parser<'a> {
         if self.bytes.get(self.pos) == Some(&b' ') {
             self.pos += 1;
         }
-        let word = std::str::from_utf8(&self.bytes[start..word_end]).unwrap_or("").to_string();
-        self.control_word(&word, param);
+        let word = std::str::from_utf8(&self.bytes[start..word_end]).unwrap_or("");
+        self.control_word(word, param);
     }
 
     fn read_hex_pair(&mut self) -> Option<u8> {
