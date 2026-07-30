@@ -298,9 +298,5 @@ fn parse_table(elem: &Element) -> Option<Block> {
     if rows.is_empty() {
         return None;
     }
-    if rows.len() == 1 && rows[0].len() == 1 {
-        let blocks = std::mem::take(&mut rows[0][0].blocks);
-        return blocks.into_iter().next();
-    }
     Some(Block::Table(Table { rows, has_header }))
 }
