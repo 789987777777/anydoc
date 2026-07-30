@@ -458,7 +458,12 @@ impl<'a> Parser<'a> {
                 }
                 _ => self.state.list_ordered,
             };
-            self.list_run.push((self.state.ilvl, ordered, 1, Block::Paragraph(inlines)));
+            self.list_run.push(ListEntry {
+                level: self.state.ilvl,
+                ordered,
+                start: 1,
+                block: Block::Paragraph(inlines),
+            });
             return;
         }
         self.flush_list();

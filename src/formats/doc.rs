@@ -654,7 +654,12 @@ impl Assembler {
             return;
         }
         if props.ilfo != 0 && props.ilfo != 0xF801 {
-            list_run.push((props.ilvl as usize, false, 1, Block::Paragraph(inlines)));
+            list_run.push(ListEntry {
+                level: props.ilvl as usize,
+                ordered: false,
+                start: 1,
+                block: Block::Paragraph(inlines),
+            });
             return;
         }
         flush_list(blocks, list_run);

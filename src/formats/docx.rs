@@ -217,7 +217,12 @@ fn collect_blocks(
                 let (kind, inlines, boxes) = parse_paragraph(child, ctx);
                 match kind {
                     ParaKind::ListItem { ilvl, ordered, start } => {
-                        list_run.push((ilvl, ordered, start, Block::Paragraph(inlines)));
+                        list_run.push(ListEntry {
+                            level: ilvl,
+                            ordered,
+                            start,
+                            block: Block::Paragraph(inlines),
+                        });
                     }
                     ParaKind::Heading(level) => {
                         flush_list(blocks, list_run);

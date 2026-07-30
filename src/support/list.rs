@@ -2,44 +2,41 @@
 
 use crate::ir::{Block, List, ListItem};
 
-/// One flat list paragraph: (indent level, ordered, start number, content).
-pub type ListEntry = (usize, bool, u64, Block);
+/// One flat list paragraph, keyed on indent level.
+pub struct ListEntry {
+    pub level: usize,
+    pub ordered: bool,
+    pub start: u64,
+    pub block: Block,
+}
 
 /// Pop the accumulated run of list paragraphs into a list block.
 pub fn flush_list(blocks: &mut Vec<Block>, list_run: &mut Vec<ListEntry>) {
-    if list_run.is_empty() {
-        return;
-    }
-    let items = std::mem::take(list_run);
-    if let Some(list) = build_list(&items) {
+    if let Some(list) = build_list(std::mem::take(list_run)) {
         blocks.push(Block::List(list));
     }
 }
 
 /// Fold a flat run of entries into a nested list keyed on indent level.
-pub fn build_list(items: &[ListEntry]) -> Option<List> {
-    if items.is_empty() {
-        return None;
-    }
-    let min_lvl = items.iter().map(|(l, ..)| *l).min().unwrap();
-    let (_, ordered, start, _) = items.iter().find(|(l, ..)| *l == min_lvl).unwrap();
-    let mut list = List { ordered: *ordered, start: *start, items: Vec::new() };
-    let mut i = 0;
-    while i < items.len() {
-        let (lvl, _, _, block) = &items[i];
-        if *lvl <= min_lvl {
-            list.items.push(ListItem { blocks: vec![block.clone()], checked: None });
-            i += 1;
+fn build_list(entries: Vec<ListEntry>) -> Option<List> {
+    let min_lvl = entries.iter().map(|e| e.level).min()?;
+    let first = entries.iter().find(|e| e.level == min_lvl).unwrap();
+    let mut list = List { ordered: first.ordered, start: first.start, items: Vec::new() };
+    let mut iter = entries.into_iter().peekable();
+    while let Some(level) = iter.peek().map(|e| e.level) {
+        if level <= min_lvl {
+            let entry = iter.next().unwrap();
+            list.items.push(ListItem { blocks: vec![entry.block], checked: None });
         } else {
-            let child_start = i;
-            while i < items.len() && items[i].0 > min_lvl {
-                i += 1;
+            let mut sub = Vec::new();
+            while iter.peek().is_some_and(|e| e.level > min_lvl) {
+                sub.push(iter.next().unwrap());
             }
-            if let Some(sub) = build_list(&items[child_start..i]) {
+            if let Some(sublist) = build_list(sub) {
                 if list.items.is_empty() {
                     list.items.push(ListItem { blocks: Vec::new(), checked: None });
                 }
-                list.items.last_mut().unwrap().blocks.push(Block::List(sub));
+                list.items.last_mut().unwrap().blocks.push(Block::List(sublist));
             }
         }
     }
