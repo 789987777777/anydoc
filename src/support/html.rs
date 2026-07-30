@@ -192,7 +192,8 @@ fn block_text(block: &Block) -> String {
 fn is_container_tag(name: &str) -> bool {
     matches!(
         name,
-        "div" | "section"
+        "div"
+            | "section"
             | "article"
             | "aside"
             | "main"
@@ -216,8 +217,18 @@ fn is_block_tag(name: &str) -> bool {
     is_container_tag(name)
         || matches!(
             name,
-            "p" | "ul" | "ol" | "table" | "blockquote" | "pre" | "hr" | "h1" | "h2" | "h3" | "h4"
-                | "h5" | "h6"
+            "p" | "ul"
+                | "ol"
+                | "table"
+                | "blockquote"
+                | "pre"
+                | "hr"
+                | "h1"
+                | "h2"
+                | "h3"
+                | "h4"
+                | "h5"
+                | "h6"
         )
 }
 
