@@ -1,6 +1,7 @@
 //! The single IR -> GitHub-Flavored Markdown serializer.
 
 use crate::ir::*;
+use crate::support::table::block_is_blank;
 use std::collections::{HashMap, HashSet};
 
 /// Footnote id -> rendered number, shared by all render functions.
@@ -58,13 +59,6 @@ fn number_notes(doc: &Document) -> NoteNumbers {
         }
     }
     order.into_iter().enumerate().map(|(i, id)| (id, i + 1)).collect()
-}
-
-fn block_is_blank(block: &Block) -> bool {
-    match block {
-        Block::Paragraph(inlines) => inlines_are_empty(inlines),
-        _ => false,
-    }
 }
 
 fn collect_note_refs(

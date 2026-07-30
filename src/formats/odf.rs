@@ -3,6 +3,7 @@
 
 use crate::ir::*;
 use crate::support::style::{RawStyles, resolve_chain};
+use crate::support::table::{block_is_blank, cell_is_empty, push_sheet, trim_trailing_empty};
 use crate::support::text::{clean_text, collapse_ws};
 use crate::support::xml::{Element, Node, parse_xml};
 use crate::support::zip::read_zip_string;
@@ -51,19 +52,8 @@ fn parse_spreadsheet(sheet: &Element, ctx: &Ctx) -> Vec<Block> {
     let multi_sheet = tables.len() > 1;
     let mut blocks = Vec::new();
     for table in tables {
-        let mut parsed = parse_table(table, ctx);
-        if parsed.is_empty() {
-            continue;
-        }
-        for block in &mut parsed {
-            if let Block::Table(t) = block {
-                t.has_header = true;
-            }
-        }
-        if multi_sheet && let Some(name) = table.attr("name") {
-            blocks.push(Block::Heading { level: 2, content: vec![Inline::plain(name)] });
-        }
-        blocks.append(&mut parsed);
+        let name = table.attr("name").unwrap_or("");
+        push_sheet(&mut blocks, multi_sheet, name, parse_table(table, ctx));
     }
     blocks
 }
@@ -200,7 +190,7 @@ fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
             }
             "table-row" => {
                 let row = parse_row(child, ctx);
-                let empty = row.iter().all(|c| c.blocks.iter().all(block_is_empty));
+                let empty = row.iter().all(cell_is_empty);
                 let repeat: usize = child
                     .attr("number-rows-repeated")
                     .and_then(|v| v.parse().ok())
@@ -218,20 +208,11 @@ fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
             _ => {}
         }
     }
-    while rows.last().is_some_and(|r| r.iter().all(|c| c.blocks.iter().all(block_is_empty))) {
-        rows.pop();
-    }
+    trim_trailing_empty(&mut rows);
     if rows.is_empty() {
         return Vec::new();
     }
     vec![Block::Table(Table { rows, has_header })]
-}
-
-fn block_is_empty(block: &Block) -> bool {
-    match block {
-        Block::Paragraph(inlines) => inlines_are_empty(inlines),
-        _ => false,
-    }
 }
 
 fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
@@ -247,7 +228,7 @@ fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
                     .unwrap_or(1)
                     .clamp(1, 100);
                 let blocks = parse_container(cell, ctx);
-                let empty = blocks.iter().all(block_is_empty);
+                let empty = blocks.iter().all(block_is_blank);
                 for _ in 0..repeat.clamp(1, if empty { 100 } else { 1000 }) {
                     cells.push(Cell { blocks: blocks.clone() });
                     for _ in 1..span {
@@ -262,9 +243,6 @@ fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
             }
             _ => {}
         }
-    }
-    while cells.last().is_some_and(|c| c.blocks.iter().all(block_is_empty)) {
-        cells.pop();
     }
     cells
 }

@@ -1,6 +1,7 @@
 //! Excel spreadsheets (xlsx, xlsm, xlsb, xls) via calamine.
 
-use crate::ir::{Block, Cell, Document, Inline, Table, inlines_are_empty};
+use crate::ir::{Block, Cell, Document, Inline, Table};
+use crate::support::table::{push_sheet, trim_trailing_empty};
 use crate::support::text::clean_text;
 use anyhow::Result;
 use calamine::{Data, Reader, open_workbook_auto_from_rs};
@@ -20,9 +21,6 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         if range.is_empty() {
             continue;
         }
-        if multi_sheet {
-            doc.blocks.push(Block::Heading { level: 2, content: vec![Inline::plain(&name)] });
-        }
         let mut rows: Vec<Vec<Cell>> = range
             .rows()
             .map(|row| {
@@ -31,23 +29,14 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
                     .collect()
             })
             .collect();
-        while rows.last().is_some_and(|r| r.iter().all(cell_is_empty)) {
-            rows.pop();
-        }
+        trim_trailing_empty(&mut rows);
         if rows.is_empty() {
             continue;
         }
-        doc.blocks.push(Block::Table(Table { rows, has_header: true }));
+        let table = Block::Table(Table { rows, has_header: false });
+        push_sheet(&mut doc.blocks, multi_sheet, &name, vec![table]);
     }
     Ok(doc)
-}
-
-fn cell_is_empty(cell: &Cell) -> bool {
-    match cell.blocks.as_slice() {
-        [Block::Paragraph(inlines)] => inlines_are_empty(inlines),
-        [] => true,
-        _ => false,
-    }
 }
 
 fn format_data(data: &Data) -> String {
