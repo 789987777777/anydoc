@@ -3,6 +3,7 @@
 pub mod fields;
 pub mod html;
 pub mod list;
+pub mod ole;
 pub mod style;
 pub mod table;
 pub mod text;

@@ -6,7 +6,7 @@ use crate::support::list::{ListEntry, flush_list};
 use crate::support::style::{RawStyles, resolve_chain};
 use crate::support::text::clean_text;
 use crate::support::xml::{Element, parse_xml};
-use crate::support::zip::read_zip_string;
+use crate::support::zip::{read_rels, read_zip_string};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -48,11 +48,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         styles = parse_styles(&tree);
     }
     let part_ctx = |zip: &mut zip::ZipArchive<Cursor<&[u8]>>, rels_name: &str| Ctx {
-        rels: read_zip_string(zip, rels_name)
-            .ok()
-            .and_then(|s| parse_xml(&s).ok())
-            .map(|t| parse_rels(&t))
-            .unwrap_or_default(),
+        rels: read_rels(zip, rels_name),
         numbering: &numbering,
         styles: &styles,
     };
@@ -91,16 +87,6 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     }
 
     Ok(Document { blocks, notes })
-}
-
-fn parse_rels(tree: &Element) -> HashMap<String, String> {
-    let mut rels = HashMap::new();
-    for rel in tree.descendants("Relationship") {
-        if let (Some(id), Some(target)) = (rel.attr("Id"), rel.attr("Target")) {
-            rels.insert(id.to_string(), target.to_string());
-        }
-    }
-    rels
 }
 
 fn parse_numbering(tree: &Element) -> HashMap<String, Vec<LevelDef>> {

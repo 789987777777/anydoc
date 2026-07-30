@@ -3,7 +3,7 @@
 use crate::ir::{Block, Document, Inline};
 use crate::support::html;
 use crate::support::xml::parse_xml;
-use crate::support::zip::read_zip_string;
+use crate::support::zip::{read_zip_string, resolve_path};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -64,21 +64,6 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         }
     }
     Ok(doc)
-}
-
-fn resolve_path(base_dir: &str, href: &str) -> String {
-    let href = href.split('#').next().unwrap_or(href);
-    let mut parts: Vec<&str> = base_dir.split('/').filter(|s| !s.is_empty()).collect();
-    for seg in href.split('/') {
-        match seg {
-            "." | "" => {}
-            ".." => {
-                parts.pop();
-            }
-            s => parts.push(s),
-        }
-    }
-    parts.join("/")
 }
 
 fn percent_decode(s: &str) -> String {

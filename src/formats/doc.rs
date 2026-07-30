@@ -3,10 +3,11 @@
 
 use crate::ir::*;
 use crate::support::fields::{FieldFrame, field_result};
+use crate::support::ole::read_stream;
 use crate::support::list::{ListEntry, flush_list};
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Seek};
+use std::io::Cursor;
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
     if bytes.starts_with(b"{\\rtf") {
@@ -101,13 +102,6 @@ fn parse_plc(word_doc: &[u8], table: &[u8], fib_off: usize, data_size: usize) ->
         cps.push(get_u32(plc, i * 4).unwrap_or(0));
     }
     (cps, n)
-}
-
-fn read_stream<R: Read + Seek>(ole: &mut cfb::CompoundFile<R>, name: &str) -> Result<Vec<u8>> {
-    let mut stream = ole.open_stream(format!("/{name}"))?;
-    let mut buf = Vec::new();
-    stream.read_to_end(&mut buf)?;
-    Ok(buf)
 }
 
 fn get_u16(b: &[u8], off: usize) -> Option<u16> {
