@@ -16,9 +16,12 @@ anydoc parses each format into a shared intermediate representation and serializ
 | Excel (OOXML) | `.xlsx`, `.xlsm`, `.xlsb` |
 | Excel (legacy binary) | `.xls` |
 | OpenDocument Spreadsheet | `.ods` |
+| PowerPoint (OOXML) | `.pptx`, `.pptm`, `.ppsx`, `.ppsm` |
+| PowerPoint (legacy binary) | `.ppt`, `.pps`, `.pot` |
+| OpenDocument Presentation | `.odp` |
 | CSV | `.csv` |
 
-PDFs are out of scope; see [pdf-inspector](https://github.com/firecrawl/pdf-inspector). Presentation formats (`.ppt`, `.pptx`, `.odp`) are not supported yet.
+PDFs are out of scope; see [pdf-inspector](https://github.com/firecrawl/pdf-inspector).
 
 ## Usage
 
@@ -48,6 +51,7 @@ cargo run --release --example convert -- file.docx [-o out.md] [--bench N]
 - Hyperlinks, including `HYPERLINK` field codes in doc/docx/rtf
 - Footnotes and endnotes as GFM footnotes (`[^1]` / `[^1]: ...`)
 - Spreadsheets as one table per sheet with number formats applied (dates render as dates, not serials)
+- Presentations in slide order with title placeholders as headings; speaker notes, masters, and slide numbers are dropped
 - Markdown syntax in source text is escaped, including line-start constructs like `1.` and `-`
 
 ## Layout
@@ -61,7 +65,7 @@ src/
   support/      shared infrastructure (XML DOM, HTML converter, text cleanup, field codes)
 ```
 
-The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB, piece table, CHPX/PAPX formatting runs, stylesheet, footnote/endnote subdocuments). Excel formats use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine); ODS is parsed natively so cells keep their formatted display text.
+The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB, piece table, CHPX/PAPX formatting runs, stylesheet, footnote/endnote subdocuments), and `.ppt` likewise (record stream, persist directory, slide list). Excel formats use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine); ODS is parsed natively so cells keep their formatted display text.
 
 ## Development
 
