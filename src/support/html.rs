@@ -283,9 +283,10 @@ fn parse_table(elem: &Element) -> Option<Block> {
             if cell.name != "th" {
                 all_th = false;
             }
-            let span: usize = cell.attr("colspan").and_then(|v| v.parse().ok()).unwrap_or(1);
+            let span: usize =
+                cell.attr("colspan").and_then(|v| v.parse().ok()).unwrap_or(1).clamp(1, 100);
             cells.push(Cell { blocks: to_blocks(cell) });
-            for _ in 1..span.clamp(1, 50) {
+            for _ in 1..span {
                 cells.push(Cell::default());
             }
         }

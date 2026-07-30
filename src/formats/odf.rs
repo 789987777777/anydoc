@@ -209,12 +209,13 @@ fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
                 }
             }
             "table-row" => {
+                let row = parse_row(child, ctx);
+                let empty = row.iter().all(|c| c.blocks.iter().all(block_is_empty));
                 let repeat: usize = child
                     .attr("number-rows-repeated")
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(1)
-                    .clamp(1, 100);
-                let row = parse_row(child, ctx);
+                    .clamp(1, if empty { 100 } else { 1000 });
                 for _ in 0..repeat {
                     rows.push(row.clone());
                 }
@@ -246,25 +247,26 @@ fn block_is_empty(block: &Block) -> bool {
 fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
     let mut cells = Vec::new();
     for cell in row.child_elems() {
-        let repeat: usize = cell
-            .attr("number-columns-repeated")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(1)
-            .clamp(1, 100);
+        let repeat: usize =
+            cell.attr("number-columns-repeated").and_then(|v| v.parse().ok()).unwrap_or(1);
         match cell.name.as_str() {
             "table-cell" => {
-                let span: usize =
-                    cell.attr("number-columns-spanned").and_then(|v| v.parse().ok()).unwrap_or(1);
+                let span: usize = cell
+                    .attr("number-columns-spanned")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1)
+                    .clamp(1, 100);
                 let blocks = parse_container(cell, ctx);
-                for _ in 0..repeat {
+                let empty = blocks.iter().all(block_is_empty);
+                for _ in 0..repeat.clamp(1, if empty { 100 } else { 1000 }) {
                     cells.push(Cell { blocks: blocks.clone() });
-                    for _ in 1..span.max(1) {
+                    for _ in 1..span {
                         cells.push(Cell::default());
                     }
                 }
             }
             "covered-table-cell" => {
-                for _ in 0..repeat {
+                for _ in 0..repeat.clamp(1, 100) {
                     cells.push(Cell::default());
                 }
             }

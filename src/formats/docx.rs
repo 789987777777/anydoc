@@ -563,13 +563,14 @@ fn collect_row_cells(parent: &Element, ctx: &Ctx, cells: &mut Vec<Cell>) {
                     .and_then(|p| p.find("gridSpan"))
                     .and_then(|e| e.attr("val"))
                     .and_then(|v| v.parse().ok())
-                    .unwrap_or(1);
+                    .unwrap_or(1)
+                    .clamp(1, 100);
                 if vmerge_cont {
                     cells.push(Cell::default());
                 } else {
                     cells.push(Cell { blocks: parse_blocks(child, ctx) });
                 }
-                for _ in 1..span.max(1) {
+                for _ in 1..span {
                     cells.push(Cell::default());
                 }
             }
