@@ -1,5 +1,24 @@
 //! Word field instruction parsing (shared by doc, docx, rtf).
 
+use crate::ir::{Inline, inlines_are_empty};
+
+/// Field accumulator: instruction text before the separator, result after.
+#[derive(Default)]
+pub struct FieldFrame {
+    pub instr: String,
+    pub in_result: bool,
+    pub inlines: Vec<Inline>,
+}
+
+/// Finish a field: wrap the result in a link when the instruction is a
+/// hyperlink, otherwise pass it through.
+pub fn field_result(instr: &str, content: Vec<Inline>) -> Vec<Inline> {
+    match hyperlink_from_instr(instr) {
+        Some(url) if !inlines_are_empty(&content) => vec![Inline::Link { content, url }],
+        _ => content,
+    }
+}
+
 /// Extract a link target from a HYPERLINK field instruction. The target may
 /// be quoted or bare, preceded by switches like \l (anchor).
 pub fn hyperlink_from_instr(instr: &str) -> Option<String> {

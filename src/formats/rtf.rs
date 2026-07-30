@@ -1,7 +1,7 @@
 //! RTF frontend: tokenizer + state machine over control words.
 
 use crate::ir::*;
-use crate::support::fields::hyperlink_from_instr;
+use crate::support::fields::field_result;
 use crate::support::list::{ListEntry, flush_list};
 use crate::support::text::clean_text;
 use anyhow::{Result, bail};
@@ -169,12 +169,7 @@ impl<'a> Parser<'a> {
             let frame = self.fields.pop().unwrap();
             let start = frame.start.min(self.inlines.len());
             let content: Vec<Inline> = self.inlines.drain(start..).collect();
-            match hyperlink_from_instr(&frame.instr) {
-                Some(url) if !inlines_are_empty(&content) => {
-                    self.inlines.push(Inline::Link { content, url });
-                }
-                _ => self.inlines.extend(content),
-            }
+            self.inlines.extend(field_result(&frame.instr, content));
         }
     }
 

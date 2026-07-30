@@ -2,7 +2,7 @@
 //! CHPX/PAPX formatting runs, STSH style sheet.
 
 use crate::ir::*;
-use crate::support::fields::hyperlink_from_instr;
+use crate::support::fields::{FieldFrame, field_result};
 use crate::support::list::{ListEntry, flush_list};
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
@@ -465,12 +465,6 @@ struct Assembler {
     ccp_text: usize,
 }
 
-struct FieldFrame {
-    instr: String,
-    in_result: bool,
-    inlines: Vec<Inline>,
-}
-
 struct ParaBuilder {
     inlines: Vec<Inline>,
     fields: Vec<FieldFrame>,
@@ -520,11 +514,7 @@ impl ParaBuilder {
 
     fn field_begin(&mut self) {
         self.flush_text();
-        self.fields.push(FieldFrame {
-            instr: String::new(),
-            in_result: false,
-            inlines: Vec::new(),
-        });
+        self.fields.push(FieldFrame::default());
     }
 
     fn field_separate(&mut self) {
@@ -539,14 +529,7 @@ impl ParaBuilder {
         let Some(frame) = self.fields.pop() else {
             return;
         };
-        let url = hyperlink_from_instr(&frame.instr);
-        let out = match url {
-            Some(url) if !inlines_are_empty(&frame.inlines) => {
-                vec![Inline::Link { content: frame.inlines, url }]
-            }
-            _ => frame.inlines,
-        };
-        for inline in out {
+        for inline in field_result(&frame.instr, frame.inlines) {
             match self.fields.last_mut() {
                 Some(f) if !f.in_result => {}
                 Some(f) => f.inlines.push(inline),

@@ -1,7 +1,7 @@
 //! OOXML WordprocessingML (.docx / .docm).
 
 use crate::ir::*;
-use crate::support::fields::hyperlink_from_instr;
+use crate::support::fields::{FieldFrame, field_result};
 use crate::support::list::{ListEntry, flush_list};
 use crate::support::text::clean_text;
 use crate::support::xml::{Element, parse_xml};
@@ -314,12 +314,6 @@ fn parse_paragraph<'a>(p: &'a Element, ctx: &'a Ctx) -> (ParaKind, Vec<Inline>, 
     (kind, inlines, boxes)
 }
 
-struct FieldFrame {
-    instr: String,
-    in_result: bool,
-    inlines: Vec<Inline>,
-}
-
 struct InlineWalker<'a> {
     ctx: &'a Ctx,
     base: Style,
@@ -435,20 +429,15 @@ impl<'a> InlineWalker<'a> {
                     }
                 }
                 "fldChar" => match child.attr("fldCharType") {
-                    Some("begin") => self.fields.push(FieldFrame {
-                        instr: String::new(),
-                        in_result: false,
-                        inlines: Vec::new(),
-                    }),
+                    Some("begin") => self.fields.push(FieldFrame::default()),
                     Some("separate") => {
                         if let Some(f) = self.fields.last_mut() {
                             f.in_result = true;
                         }
                     }
                     Some("end") => {
-                        if let Some(frame) = self.fields.pop() {
-                            let instr = frame.instr.clone();
-                            self.push_field_result(&instr, frame.inlines);
+                        if let Some(FieldFrame { instr, inlines, .. }) = self.fields.pop() {
+                            self.push_field_result(&instr, inlines);
                         }
                     }
                     _ => {}
@@ -464,14 +453,8 @@ impl<'a> InlineWalker<'a> {
     }
 
     fn push_field_result(&mut self, instr: &str, content: Vec<Inline>) {
-        let url = hyperlink_from_instr(instr);
-        match url {
-            Some(url) if !inlines_are_empty(&content) => self.push(Inline::Link { content, url }),
-            _ => {
-                for inline in content {
-                    self.push(inline);
-                }
-            }
+        for inline in field_result(instr, content) {
+            self.push(inline);
         }
     }
 
