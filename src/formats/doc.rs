@@ -653,6 +653,7 @@ impl Assembler {
             blocks.push(Block::Heading { level, content: inlines });
             return;
         }
+        // ilfo 0xF801 marks a paragraph whose list numbering is suppressed.
         if props.ilfo != 0 && props.ilfo != 0xF801 {
             list_run.push(ListEntry {
                 level: props.ilvl as usize,
