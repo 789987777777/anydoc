@@ -409,12 +409,8 @@ impl<'a> InlineWalker<'a> {
                     if self.boxes.len() > before {
                         continue;
                     }
-                    let descr = child
-                        .descendants("docPr")
-                        .into_iter()
-                        .next()
-                        .and_then(|d| d.attr("descr"))
-                        .unwrap_or("");
+                    let descr =
+                        child.first_descendant("docPr").and_then(|d| d.attr("descr")).unwrap_or("");
                     if !descr.trim().is_empty() {
                         self.push(Inline::Image { alt: clean_text(descr), url: None });
                     }

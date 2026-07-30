@@ -302,14 +302,12 @@ fn walk_inlines(elem: &Element, ctx: &mut Ctx, style: Style, out: &mut Vec<Inlin
                 "annotation" | "tracked-changes" | "soft-page-break" => {}
                 "frame" => {
                     let alt = child
-                        .descendants("title")
-                        .first()
+                        .first_descendant("title")
                         .map(|t| t.text())
-                        .or_else(|| child.descendants("desc").first().map(|d| d.text()))
+                        .or_else(|| child.first_descendant("desc").map(|d| d.text()))
                         .unwrap_or_default();
                     let url = child
-                        .descendants("image")
-                        .first()
+                        .first_descendant("image")
                         .and_then(|i| i.attr("href"))
                         .map(|s| s.to_string());
                     if url.is_some() || !alt.trim().is_empty() {

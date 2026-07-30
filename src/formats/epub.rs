@@ -14,8 +14,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let container = read_zip_string(&mut zip, "META-INF/container.xml")?;
     let container = parse_xml(&container)?;
     let opf_path = container
-        .descendants("rootfile")
-        .first()
+        .first_descendant("rootfile")
         .and_then(|r| r.attr("full-path"))
         .context("container.xml has no rootfile")?
         .to_string();
@@ -27,7 +26,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let opf = parse_xml(&read_zip_string(&mut zip, &opf_path)?)?;
     let mut doc = Document::default();
 
-    if let Some(title) = opf.descendants("title").first().map(|t| t.text()) {
+    if let Some(title) = opf.first_descendant("title").map(|t| t.text()) {
         let title = title.trim().to_string();
         if !title.is_empty() {
             doc.blocks.push(Block::Heading { level: 1, content: vec![Inline::plain(title)] });

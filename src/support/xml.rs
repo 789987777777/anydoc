@@ -38,6 +38,19 @@ impl Element {
         self.child_elems().filter(move |e| e.name == name)
     }
 
+    /// Depth-first search for the first descendant element with the given name.
+    pub fn first_descendant(&self, name: &str) -> Option<&Element> {
+        for child in self.child_elems() {
+            if child.name == name {
+                return Some(child);
+            }
+            if let Some(found) = child.first_descendant(name) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
     /// Depth-first search for all descendant elements with the given name.
     pub fn descendants<'a>(&'a self, name: &'a str) -> Vec<&'a Element> {
         let mut out = Vec::new();
