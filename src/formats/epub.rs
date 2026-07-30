@@ -43,6 +43,9 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     }
 
     for itemref in opf.descendants("itemref") {
+        if itemref.attr("linear") == Some("no") {
+            continue;
+        }
         let Some(idref) = itemref.attr("idref") else {
             continue;
         };
