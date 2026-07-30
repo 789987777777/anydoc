@@ -469,9 +469,6 @@ fn parse_table(tbl: &Element, ctx: &Ctx) -> Vec<Block> {
     if rows.is_empty() {
         return Vec::new();
     }
-    if rows.len() == 1 && rows[0].len() == 1 {
-        return std::mem::take(&mut rows[0][0].blocks);
-    }
     vec![Block::Table(Table { rows, has_header })]
 }
 

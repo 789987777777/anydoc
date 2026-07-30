@@ -493,13 +493,8 @@ impl<'a> Parser<'a> {
             return;
         }
         self.flush_list();
-        let mut rows = std::mem::take(&mut self.table_rows);
-        if rows.len() == 1 && rows[0].len() == 1 {
-            let cell = rows.remove(0).into_iter().next().unwrap();
-            self.blocks.extend(cell.blocks);
-        } else {
-            self.blocks.push(Block::Table(Table { rows, has_header: false }));
-        }
+        let rows = std::mem::take(&mut self.table_rows);
+        self.blocks.push(Block::Table(Table { rows, has_header: false }));
     }
 
     fn flush_list(&mut self) {

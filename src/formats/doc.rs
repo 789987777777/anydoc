@@ -677,12 +677,7 @@ impl Assembler {
         if table_rows.is_empty() {
             return;
         }
-        let mut rows = std::mem::take(table_rows);
-        if rows.len() == 1 && rows[0].len() == 1 {
-            let cell = rows.remove(0).into_iter().next().unwrap();
-            blocks.extend(cell.blocks);
-        } else {
-            blocks.push(Block::Table(Table { rows, has_header: false }));
-        }
+        let rows = std::mem::take(table_rows);
+        blocks.push(Block::Table(Table { rows, has_header: false }));
     }
 }

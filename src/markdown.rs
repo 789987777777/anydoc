@@ -139,6 +139,11 @@ fn render_block(block: &Block, nums: &NoteNumbers) -> Option<String> {
             if trimmed.is_empty() { None } else { Some(trimmed) }
         }
         Block::List(list) => render_list(list, nums),
+        // Single-cell tables are layout scaffolding; render their content directly.
+        Block::Table(table) if table.rows.len() == 1 && table.rows[0].len() == 1 => {
+            let inner = render_blocks(&table.rows[0][0].blocks, nums);
+            if inner.is_empty() { None } else { Some(inner) }
+        }
         Block::Table(table) => render_table(table, nums),
         Block::BlockQuote(blocks) => {
             let inner = render_blocks(blocks, nums);
@@ -255,6 +260,20 @@ fn render_table(table: &Table, nums: &NoteNumbers) -> Option<String> {
             cells
         })
         .collect();
+    while rendered.len() > 1 && rendered.last().is_some_and(|r| r.iter().all(|c| c.is_empty())) {
+        rendered.pop();
+    }
+    let width = rendered
+        .iter()
+        .map(|r| r.iter().rposition(|c| !c.is_empty()).map_or(0, |i| i + 1))
+        .max()
+        .unwrap_or(0);
+    if width == 0 {
+        return None;
+    }
+    for row in &mut rendered {
+        row.truncate(width);
+    }
 
     let mut out = String::new();
     let header: Vec<String> = if table.has_header && !rendered.is_empty() {
@@ -364,9 +383,18 @@ enum InlineContext {
 fn render_inlines(inlines: &[Inline], ctx: InlineContext, nums: &NoteNumbers) -> String {
     let runs = normalize(inlines);
     let mut out = String::new();
-    for run in &runs {
+    for (idx, run) in runs.iter().enumerate() {
         match run {
-            Norm::Text { text, style } => render_text_run(text, *style, ctx, &mut out),
+            Norm::Text { text, style } => {
+                let next_active = matches!(
+                    runs.get(idx + 1),
+                    Some(Norm::Link { .. } | Norm::Image { .. } | Norm::NoteRef(_))
+                ) || matches!(
+                    runs.get(idx + 1),
+                    Some(Norm::Text { style, .. }) if *style != Style::PLAIN
+                );
+                render_text_run(text, *style, ctx, next_active, &mut out)
+            }
             Norm::NoteRef(id) => {
                 if let Some(num) = nums.get(id) {
                     out.push_str(&format!("[^{num}]"));
@@ -375,7 +403,7 @@ fn render_inlines(inlines: &[Inline], ctx: InlineContext, nums: &NoteNumbers) ->
             Norm::Link { content, url } => {
                 let text = render_inlines(content, ctx, nums);
                 let text = text.trim();
-                if url.is_empty() {
+                if !usable_url(url) {
                     out.push_str(text);
                 } else if text.is_empty() {
                     out.push_str(&format!("[{}]({})", escape_url_as_text(url), format_url(url)));
@@ -384,13 +412,13 @@ fn render_inlines(inlines: &[Inline], ctx: InlineContext, nums: &NoteNumbers) ->
                 }
             }
             Norm::Image { alt, url } => match url {
-                Some(u) if !u.is_empty() => {
+                Some(u) if usable_url(u) => {
                     let alt = alt.replace(['[', ']'], " ");
                     out.push_str(&format!("![{}]({})", alt.trim(), format_url(u)));
                 }
                 _ => {
                     if !alt.trim().is_empty() {
-                        out.push_str(&escape_text(alt.trim(), ctx, false));
+                        out.push_str(&escape_text(alt.trim(), ctx, false, false, false));
                     }
                 }
             },
@@ -472,10 +500,16 @@ fn normalize_pass(inlines: &[Inline]) -> Vec<Norm> {
 }
 
 /// Emit a styled run, moving edge whitespace outside the delimiters.
-fn render_text_run(text: &str, style: Style, ctx: InlineContext, out: &mut String) {
+fn render_text_run(
+    text: &str,
+    style: Style,
+    ctx: InlineContext,
+    trailing_active: bool,
+    out: &mut String,
+) {
     if style == Style::PLAIN {
         let at_line_start = out.is_empty() || out.ends_with('\n');
-        out.push_str(&escape_text(text, ctx, at_line_start));
+        out.push_str(&escape_text(text, ctx, at_line_start, false, trailing_active));
         return;
     }
     let core_start = text.len() - text.trim_start().len();
@@ -500,7 +534,7 @@ fn render_text_run(text: &str, style: Style, ctx: InlineContext, out: &mut Strin
             }
             let close: String = open.chars().rev().collect();
             out.push_str(&open);
-            out.push_str(&escape_text(core, ctx, false));
+            out.push_str(&escape_text(core, ctx, false, true, false));
             out.push_str(&close);
         }
     }
@@ -520,17 +554,38 @@ fn push_code_span(text: &str, out: &mut String) {
 // ---------------------------------------------------------------------------
 // Escaping
 
-/// Escape Markdown syntax in document text.
-fn escape_text(text: &str, ctx: InlineContext, at_line_start: bool) -> String {
-    let mut out = String::with_capacity(text.len() + 8);
+/// Escape Markdown syntax in document text, but only where it could actually
+/// parse as syntax in context.
+fn escape_text(
+    text: &str,
+    ctx: InlineContext,
+    at_line_start: bool,
+    styled: bool,
+    trailing_active: bool,
+) -> String {
     let chars: Vec<char> = text.chars().collect();
+    // Last position of each pairable delimiter; a lone one is inert.
+    let mut last: [Option<usize>; 5] = [None; 5]; // * _ ~ ` ]
+    for (j, &c) in chars.iter().enumerate() {
+        match c {
+            '*' => last[0] = Some(j),
+            '_' => last[1] = Some(j),
+            '~' => last[2] = Some(j),
+            '`' => last[3] = Some(j),
+            ']' => last[4] = Some(j),
+            _ => {}
+        }
+    }
+    let mut out = String::with_capacity(text.len() + 8);
+    let mut line_has_content = !(at_line_start && ctx == InlineContext::Block);
     let mut i = 0;
-    let mut line_has_content = !at_line_start;
     while i < chars.len() {
         let c = chars[i];
         if c == '\n' {
             out.push('\n');
-            line_has_content = false;
+            if ctx == InlineContext::Block {
+                line_has_content = false;
+            }
             i += 1;
             continue;
         }
@@ -538,36 +593,69 @@ fn escape_text(text: &str, ctx: InlineContext, at_line_start: bool) -> String {
         if !c.is_whitespace() {
             line_has_content = true;
         }
-        match c {
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' => {
-                out.push('\\');
-                out.push(c);
+        let next = chars.get(i + 1).copied();
+        // At the run's end the next character is unknown; trailing_active assumes the worst.
+        let next_nonspace = next.map_or(trailing_active, |n| !n.is_whitespace());
+        let paired = |slot: usize| trailing_active || last[slot].is_some_and(|j| j > i);
+        let escape = match c {
+            '\\' => true,
+            '`' => styled || paired(3),
+            '*' => styled || start_of_line || (next_nonspace && paired(0)),
+            '_' => {
+                let prev_alnum = i > 0 && chars[i - 1].is_alphanumeric();
+                let next_alnum = next.is_some_and(char::is_alphanumeric);
+                styled || (next_nonspace && !(prev_alnum && next_alnum) && paired(1))
             }
-            '|' if ctx == InlineContext::TableCell => out.push_str("\\|"),
-            '&' if entity_ahead(&chars[i..]) => out.push_str("&amp;"),
-            '#' | '-' | '+' | '>' | '=' if start_of_line => {
-                out.push('\\');
-                out.push(c);
+            '~' => styled || (next_nonspace && paired(2)),
+            '[' => paired(4),
+            '<' => next.is_some_and(|n| n.is_ascii_alphabetic() || matches!(n, '/' | '!' | '?')),
+            '!' => next.is_none() && trailing_active,
+            '|' if ctx == InlineContext::TableCell => true,
+            '&' if entity_ahead(&chars[i..]) => {
+                out.push_str("&amp;");
+                i += 1;
+                continue;
             }
+            '#' if start_of_line => {
+                let j = (i..chars.len()).find(|&j| chars[j] != '#').unwrap_or(chars.len());
+                chars.get(j).is_none_or(|n| n.is_whitespace())
+            }
+            '-' if start_of_line => !next_nonspace || line_is_only(&chars[i..], '-'),
+            '+' if start_of_line => !next_nonspace,
+            '>' if start_of_line => true,
+            '=' if start_of_line => line_is_only(&chars[i..], '='),
             '0'..='9' if start_of_line => {
                 let mut j = i;
                 while j < chars.len() && chars[j].is_ascii_digit() {
                     j += 1;
                 }
-                if j < chars.len() && (chars[j] == '.' || chars[j] == ')') {
+                if j < chars.len()
+                    && (chars[j] == '.' || chars[j] == ')')
+                    && chars.get(j + 1).is_none_or(|n| n.is_whitespace())
+                {
                     out.extend(&chars[i..j]);
                     out.push('\\');
                     out.push(chars[j]);
                     i = j + 1;
                     continue;
                 }
-                out.push(c);
+                false
             }
-            _ => out.push(c),
+            _ => false,
+        };
+        if escape {
+            out.push('\\');
         }
+        out.push(c);
         i += 1;
     }
     out
+}
+
+/// True when the rest of the current line is just `c`, spaces, and tabs
+/// (a setext underline or thematic break).
+fn line_is_only(chars: &[char], c: char) -> bool {
+    chars.iter().take_while(|&&ch| ch != '\n').all(|&ch| ch == c || ch == ' ' || ch == '\t')
 }
 
 fn entity_ahead(chars: &[char]) -> bool {
@@ -581,6 +669,16 @@ fn entity_ahead(chars: &[char]) -> bool {
         seen += 1;
     }
     seen > 0 && i < chars.len() && chars[i] == ';'
+}
+
+/// A URL is only emitted when it resolves outside the source file: it needs a
+/// scheme, and a single-letter one is a Windows drive path.
+fn usable_url(url: &str) -> bool {
+    let scheme = url
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
+        .count();
+    scheme >= 2 && url[scheme..].starts_with(':')
 }
 
 /// Format a link destination, angle-bracketing when needed.
@@ -631,9 +729,25 @@ mod tests {
     }
 
     #[test]
-    fn escapes_syntax_chars() {
-        let md = doc(vec![Block::Paragraph(vec![Inline::plain("2 * 3 = 6 [really] #tag")])]);
-        assert_eq!(md, "2 \\* 3 = 6 \\[really\\] #tag\n");
+    fn escapes_paired_syntax_chars() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("a *bold* _it_ ~st~ `code`")])]);
+        assert_eq!(md, "a \\*bold* \\_it_ \\~st~ \\`code`\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("see [really] and <b>hi</b>")])]);
+        assert_eq!(md, "see \\[really] and \\<b>hi\\</b>\n");
+    }
+
+    #[test]
+    fn lone_syntax_chars_left_alone() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("2 * 3 = 6 and 5*6 #tag")])]);
+        assert_eq!(md, "2 * 3 = 6 and 5*6 #tag\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("x < 5, ~10%, file_name, a[1")])]);
+        assert_eq!(md, "x < 5, ~10%, file_name, a[1\n");
+    }
+
+    #[test]
+    fn intraword_underscores_unescaped() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("snake_case_name vs _lead_")])]);
+        assert_eq!(md, "snake_case_name vs \\_lead_\n");
     }
 
     #[test]
@@ -644,6 +758,38 @@ mod tests {
         assert_eq!(md, "1\\. not a list\n");
         let md = doc(vec![Block::Paragraph(vec![Inline::plain("take 2. then rest")])]);
         assert_eq!(md, "take 2. then rest\n");
+    }
+
+    #[test]
+    fn line_start_lookalikes_unescaped() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("-5°C at dawn")])]);
+        assert_eq!(md, "-5°C at dawn\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("1.5 million users")])]);
+        assert_eq!(md, "1.5 million users\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("#hashtag first")])]);
+        assert_eq!(md, "#hashtag first\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("--- ruled")])]);
+        assert_eq!(md, "--- ruled\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("---")])]);
+        assert_eq!(md, "\\---\n");
+    }
+
+    #[test]
+    fn negative_number_in_cell_unescaped() {
+        let md = doc(vec![Block::Table(Table {
+            rows: vec![vec![
+                Cell::from_inlines(vec![Inline::plain("-42")]),
+                Cell::from_inlines(vec![Inline::plain("x")]),
+            ]],
+            has_header: false,
+        })]);
+        assert_eq!(md, "|  |  |\n| --- | --- |\n| -42 | x |\n");
+    }
+
+    #[test]
+    fn trailing_delimiter_before_styled_run_escaped() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::plain("star*"), styled("x", BOLD)])]);
+        assert_eq!(md, "star\\***x**\n");
     }
 
     #[test]
@@ -687,6 +833,59 @@ mod tests {
     }
 
     #[test]
+    fn relative_urls_dropped() {
+        let md = doc(vec![Block::Paragraph(vec![Inline::Image {
+            alt: "chart".into(),
+            url: Some("image/7.png".into()),
+        }])]);
+        assert_eq!(md, "chart\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::Link {
+            content: vec![Inline::plain("next")],
+            url: "chapter2.xhtml".into(),
+        }])]);
+        assert_eq!(md, "next\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::Link {
+            content: vec![Inline::plain("note")],
+            url: "#anchor".into(),
+        }])]);
+        assert_eq!(md, "note\n");
+        let md = doc(vec![Block::Paragraph(vec![Inline::Link {
+            content: vec![Inline::plain("mail")],
+            url: "mailto:a@b.c".into(),
+        }])]);
+        assert_eq!(md, "[mail](mailto:a@b.c)\n");
+    }
+
+    #[test]
+    fn layout_table_unwrapped() {
+        let md = doc(vec![Block::Table(Table {
+            rows: vec![vec![Cell {
+                blocks: vec![
+                    Block::Heading { level: 1, content: vec![Inline::plain("Boxed")] },
+                    Block::Paragraph(vec![Inline::plain("body")]),
+                ],
+            }]],
+            has_header: false,
+        })]);
+        assert_eq!(md, "# Boxed\n\nbody\n");
+    }
+
+    #[test]
+    fn trailing_empty_rows_and_columns_trimmed() {
+        let empty = || Cell::default();
+        let filled = |s: &str| Cell::from_inlines(vec![Inline::plain(s)]);
+        let md = doc(vec![Block::Table(Table {
+            rows: vec![
+                vec![filled("a"), filled("b"), empty()],
+                vec![filled("c"), empty(), empty()],
+                vec![empty(), empty(), empty()],
+            ],
+            has_header: true,
+        })]);
+        assert_eq!(md, "| a | b |\n| --- | --- |\n| c |  |\n");
+    }
+
+    #[test]
     fn table_basic() {
         let md = doc(vec![Block::Table(Table {
             rows: vec![
@@ -727,8 +926,11 @@ mod tests {
                 Block::Paragraph(vec![Inline::plain("two")]),
             ],
         };
-        let md = doc(vec![Block::Table(Table { rows: vec![vec![cell]], has_header: false })]);
-        assert_eq!(md, "|  |\n| --- |\n| one<br>two |\n");
+        let md = doc(vec![Block::Table(Table {
+            rows: vec![vec![cell, Cell::from_inlines(vec![Inline::plain("x")])]],
+            has_header: false,
+        })]);
+        assert_eq!(md, "|  |  |\n| --- | --- |\n| one<br>two | x |\n");
     }
 
     #[test]
