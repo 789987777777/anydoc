@@ -44,9 +44,16 @@ fn decode(bytes: &[u8]) -> Cow<'_, str> {
     }
 }
 
+/// Pick the candidate with the most hits in the first lines; comma wins ties.
 fn sniff_delimiter(text: &str) -> u8 {
-    let candidates = [b',', b';', b'\t', b'|'];
     let count =
         |d: u8| text.lines().take(10).map(|l| l.bytes().filter(|&b| b == d).count()).sum::<usize>();
-    candidates.into_iter().max_by_key(|&d| count(d)).unwrap_or(b',')
+    let mut best = (b',', count(b','));
+    for d in [b';', b'\t', b'|'] {
+        let c = count(d);
+        if c > best.1 {
+            best = (d, c);
+        }
+    }
+    best.0
 }
