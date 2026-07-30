@@ -69,7 +69,7 @@ The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB
 cargo test
 ```
 
-Serializer behavior (escaping, emphasis, tables, footnotes) is covered by unit tests in `src/markdown.rs`. A local corpus of real-world documents in `samples/` (not committed) is used for regression and benchmark runs via the `convert` example.
+Serializer behavior (escaping, emphasis, tables, footnotes) is covered by unit tests in `src/markdown.rs`. A local corpus of real-world documents in `samples/` (not committed) is used for regression and benchmark runs via the `convert` example. A speed and quality benchmark against other converters lives in [`bench/`](bench/README.md).
 
 ## License
 
