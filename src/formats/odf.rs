@@ -2,6 +2,7 @@
 //! Spreadsheet cells keep their display text, so number formats are as rendered.
 
 use crate::ir::*;
+use crate::support::style::{RawStyles, resolve_chain};
 use crate::support::text::{clean_text, collapse_ws};
 use crate::support::xml::{Element, Node, parse_xml};
 use crate::support::zip::read_zip_string;
@@ -76,7 +77,7 @@ fn collect_styles(tree: &Element, ctx: &mut Ctx) {
             }
         }
     }
-    let mut raw: HashMap<&str, (&Element, Option<&str>)> = HashMap::new();
+    let mut raw: RawStyles = HashMap::new();
     for style in &style_elems {
         if style.name == "style"
             && let Some(name) = style.attr("name")
@@ -84,9 +85,11 @@ fn collect_styles(tree: &Element, ctx: &mut Ctx) {
             raw.insert(name, (style, style.attr("parent-style-name")));
         }
     }
+    // `base` supplies parents already resolved from styles.xml.
+    let base = |id: &str| ctx.text_styles.get(id).copied().unwrap_or(Style::PLAIN);
     let resolved: Vec<(String, Style)> = raw
         .keys()
-        .map(|n| ((*n).to_string(), resolve_text_style(n, &raw, &ctx.text_styles, 0)))
+        .map(|n| ((*n).to_string(), resolve_chain(n, &raw, &base, &apply_text_props)))
         .collect();
     ctx.text_styles.extend(resolved);
     for style in &style_elems {
@@ -108,36 +111,19 @@ fn collect_styles(tree: &Element, ctx: &mut Ctx) {
     }
 }
 
-/// Resolve a style through its parent chain; `known` holds styles already
-/// resolved from earlier files (styles.xml parents of content.xml styles).
-fn resolve_text_style(
-    name: &str,
-    raw: &HashMap<&str, (&Element, Option<&str>)>,
-    known: &HashMap<String, Style>,
-    depth: usize,
-) -> Style {
-    if depth > 8 {
-        return Style::PLAIN;
-    }
-    let Some((elem, parent)) = raw.get(name) else {
-        return known.get(name).copied().unwrap_or(Style::PLAIN);
+fn apply_text_props(elem: &Element, style: &mut Style) {
+    let Some(props) = elem.find("text-properties") else {
+        return;
     };
-    let mut style = match parent {
-        Some(p) => resolve_text_style(p, raw, known, depth + 1),
-        None => Style::PLAIN,
-    };
-    if let Some(props) = elem.find("text-properties") {
-        if let Some(w) = props.attr("font-weight") {
-            style.bold = w == "bold" || w.parse::<u32>().is_ok_and(|n| n >= 600);
-        }
-        if let Some(s) = props.attr("font-style") {
-            style.italic = s == "italic" || s == "oblique";
-        }
-        if let Some(lt) = props.attr("text-line-through-style") {
-            style.strike = lt != "none";
-        }
+    if let Some(w) = props.attr("font-weight") {
+        style.bold = w == "bold" || w.parse::<u32>().is_ok_and(|n| n >= 600);
     }
-    style
+    if let Some(s) = props.attr("font-style") {
+        style.italic = s == "italic" || s == "oblique";
+    }
+    if let Some(lt) = props.attr("text-line-through-style") {
+        style.strike = lt != "none";
+    }
 }
 
 fn parse_container(parent: &Element, ctx: &Ctx) -> Vec<Block> {

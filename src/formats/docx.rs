@@ -3,6 +3,7 @@
 use crate::ir::*;
 use crate::support::fields::{FieldFrame, field_result};
 use crate::support::list::{ListEntry, flush_list};
+use crate::support::style::{RawStyles, resolve_chain};
 use crate::support::text::clean_text;
 use crate::support::xml::{Element, parse_xml};
 use crate::support::zip::read_zip_string;
@@ -149,7 +150,7 @@ fn parse_styles(tree: &Element) -> Styles {
     let Some(root) = tree.find("styles") else {
         return styles;
     };
-    let mut raw: HashMap<&str, (&Element, Option<&str>)> = HashMap::new();
+    let mut raw: RawStyles = HashMap::new();
     for style in root.find_all("style") {
         if let Some(id) = style.attr("styleId") {
             raw.insert(id, (style, style.find("basedOn").and_then(|e| e.attr("val"))));
@@ -174,7 +175,7 @@ fn parse_styles(tree: &Element) -> Styles {
         if let Some(level) = level {
             styles.headings.insert(id.to_string(), level);
         }
-        let resolved = resolve_run_style(id, &raw, 0);
+        let resolved = resolve_chain(id, &raw, &|_| Style::PLAIN, &apply_style_rpr);
         if style.attr("type") == Some("character") {
             styles.character.insert(id.to_string(), resolved);
         } else {
@@ -184,25 +185,10 @@ fn parse_styles(tree: &Element) -> Styles {
     styles
 }
 
-fn resolve_run_style(
-    id: &str,
-    raw: &HashMap<&str, (&Element, Option<&str>)>,
-    depth: usize,
-) -> Style {
-    if depth > 8 {
-        return Style::PLAIN;
-    }
-    let Some((elem, based)) = raw.get(id) else {
-        return Style::PLAIN;
-    };
-    let mut style = match based {
-        Some(b) => resolve_run_style(b, raw, depth + 1),
-        None => Style::PLAIN,
-    };
+fn apply_style_rpr(elem: &Element, style: &mut Style) {
     if let Some(rpr) = elem.find("rPr") {
-        apply_rpr(rpr, &mut style);
+        apply_rpr(rpr, style);
     }
-    style
 }
 
 enum ParaKind {
