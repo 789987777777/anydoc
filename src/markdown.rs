@@ -151,14 +151,19 @@ fn render_block(block: &Block, nums: &NoteNumbers) -> Option<String> {
             Some(quoted.join("\n"))
         }
         Block::CodeBlock { lang, text } => {
-            let longest_run = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
-            let fence = "`".repeat((longest_run + 1).max(3));
+            let fence = backtick_fence(text, 3);
             let lang = lang.as_deref().unwrap_or("");
             let body = text.trim_end_matches('\n');
             Some(format!("{fence}{lang}\n{body}\n{fence}"))
         }
         Block::Rule => Some("---".to_string()),
     }
+}
+
+/// Shortest backtick fence longer than any backtick run in `text`.
+fn backtick_fence(text: &str, min: usize) -> String {
+    let longest_run = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    "`".repeat((longest_run + 1).max(min))
 }
 
 /// Trim paragraph lines, keeping hard-break backslashes intact.
@@ -242,10 +247,6 @@ fn render_table(table: &Table, nums: &NoteNumbers) -> Option<String> {
         return None;
     }
     let width = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-    if width == 0 {
-        return None;
-    }
-
     let mut rendered: Vec<Vec<String>> = rows
         .iter()
         .map(|row| {
@@ -304,7 +305,7 @@ fn render_cell(cell: &Cell, nums: &NoteNumbers) -> String {
     parts
         .join("<br>")
         .lines()
-        .map(|l| l.trim().trim_end_matches('\\').trim_end())
+        .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join("<br>")
@@ -539,8 +540,7 @@ fn render_text_run(
 
 fn push_code_span(text: &str, out: &mut String) {
     let text = text.replace('\n', " ");
-    let longest_run = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
-    let fence = "`".repeat((longest_run + 1).max(1));
+    let fence = backtick_fence(&text, 1);
     let pad = if text.starts_with('`') || text.ends_with('`') { " " } else { "" };
     out.push_str(&format!("{fence}{pad}{text}{pad}{fence}"));
 }
