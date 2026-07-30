@@ -254,6 +254,8 @@ impl<'a> Parser<'a> {
             "u" => {
                 if self.accepts_text() {
                     self.flush_pending();
+                    // A new \u ends the previous one's fallback range.
+                    self.skip_chars = 0;
                     if let Some(n) = param {
                         let code = if n < 0 { (n + 65536) as u32 } else { n as u32 };
                         if let Some(c) = char::from_u32(code) {
