@@ -168,10 +168,10 @@ fn inline_children(elem: &Element, style: Style) -> Vec<Inline> {
     let mut b = Builder::default();
     b.walk_children(elem, style);
     let mut blocks = b.finish();
-    if blocks.len() == 1 {
-        if let Block::Paragraph(inlines) = blocks.remove(0) {
-            return inlines;
-        }
+    if blocks.len() == 1
+        && let Block::Paragraph(inlines) = blocks.remove(0)
+    {
+        return inlines;
     }
     let mut out = Vec::new();
     for (i, block) in blocks.iter().enumerate() {
@@ -206,10 +206,35 @@ fn block_text(block: &Block) -> String {
 fn is_block_tag(name: &str) -> bool {
     matches!(
         name,
-        "p" | "div" | "ul" | "ol" | "li" | "table" | "blockquote" | "pre" | "hr" | "h1" | "h2"
-            | "h3" | "h4" | "h5" | "h6" | "section" | "article" | "aside" | "main" | "nav"
-            | "header" | "footer" | "figure" | "figcaption" | "center" | "dl" | "dt" | "dd"
-            | "details" | "summary"
+        "p" | "div"
+            | "ul"
+            | "ol"
+            | "li"
+            | "table"
+            | "blockquote"
+            | "pre"
+            | "hr"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "section"
+            | "article"
+            | "aside"
+            | "main"
+            | "nav"
+            | "header"
+            | "footer"
+            | "figure"
+            | "figcaption"
+            | "center"
+            | "dl"
+            | "dt"
+            | "dd"
+            | "details"
+            | "summary"
     )
 }
 

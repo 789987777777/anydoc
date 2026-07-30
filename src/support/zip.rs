@@ -1,13 +1,10 @@
 //! Zip archive helpers.
 
 use anyhow::Result;
+use std::io::{Read, Seek};
 
 /// Read a file out of a zip archive as a UTF-8 string (BOM stripped).
-pub fn read_zip_string<R: std::io::Read + std::io::Seek>(
-    zip: &mut ::zip::ZipArchive<R>,
-    name: &str,
-) -> Result<String> {
-    use std::io::Read;
+pub fn read_zip_string<R: Read + Seek>(zip: &mut zip::ZipArchive<R>, name: &str) -> Result<String> {
     let mut file = zip.by_name(name)?;
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes)?;

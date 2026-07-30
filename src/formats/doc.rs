@@ -3,15 +3,16 @@
 
 use crate::ir::*;
 use crate::support::fields::hyperlink_from_instr;
-use anyhow::{bail, Context, Result};
+use crate::support::list::{ListEntry, flush_list};
+use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Cursor, Read, Seek};
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
     if bytes.starts_with(b"{\\rtf") {
         return super::rtf::parse(bytes);
     }
-    let cursor = std::io::Cursor::new(bytes);
+    let cursor = Cursor::new(bytes);
     let mut ole = cfb::CompoundFile::open(cursor).context("not an OLE2 compound file")?;
 
     let word_doc = read_stream(&mut ole, "WordDocument")?;
@@ -87,7 +88,9 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
 fn parse_plc(word_doc: &[u8], table: &[u8], fib_off: usize, data_size: usize) -> (Vec<u32>, usize) {
     let fc = get_u32(word_doc, fib_off).unwrap_or(0) as usize;
     let lcb = get_u32(word_doc, fib_off + 4).unwrap_or(0) as usize;
-    let Some(plc) = table.get(fc..fc.saturating_add(lcb)) else { return (Vec::new(), 0) };
+    let Some(plc) = table.get(fc..fc.saturating_add(lcb)) else {
+        return (Vec::new(), 0);
+    };
     if lcb < 8 {
         return (Vec::new(), 0);
     }
@@ -99,7 +102,7 @@ fn parse_plc(word_doc: &[u8], table: &[u8], fib_off: usize, data_size: usize) ->
     (cps, n)
 }
 
-fn read_stream<R: Read + std::io::Seek>(ole: &mut cfb::CompoundFile<R>, name: &str) -> Result<Vec<u8>> {
+fn read_stream<R: Read + Seek>(ole: &mut cfb::CompoundFile<R>, name: &str) -> Result<Vec<u8>> {
     let mut stream = ole.open_stream(format!("/{name}"))?;
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf)?;
@@ -177,7 +180,9 @@ fn extract_text(word_doc: &[u8], pieces: &[Piece], ccp_text: usize) -> (Vec<char
         }
         let len = piece.cp_end.saturating_sub(piece.cp_start).min(ccp_text - chars.len());
         if piece.compressed {
-            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len) else { continue };
+            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len) else {
+                continue;
+            };
             for (i, &b) in bytes.iter().enumerate() {
                 let c = if b < 0x80 {
                     b as char
@@ -190,8 +195,11 @@ fn extract_text(word_doc: &[u8], pieces: &[Piece], ccp_text: usize) -> (Vec<char
                 fcs.push((piece.fc + i) as u32);
             }
         } else {
-            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len * 2) else { continue };
-            let units: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len * 2) else {
+                continue;
+            };
+            let units: Vec<u16> =
+                bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
             let mut unit_idx = 0usize;
             for r in char::decode_utf16(units.iter().copied()) {
                 let c = r.unwrap_or('\u{fffd}');
@@ -254,15 +262,21 @@ fn parse_fkps(word_doc: &[u8], table: &[u8], fib_off: usize, kind: FkpKind) -> V
     let mut runs = Vec::new();
     let fc = get_u32(word_doc, fib_off).unwrap_or(0) as usize;
     let lcb = get_u32(word_doc, fib_off + 4).unwrap_or(0) as usize;
-    let Some(plc) = table.get(fc..fc + lcb) else { return runs };
+    let Some(plc) = table.get(fc..fc + lcb) else {
+        return runs;
+    };
     if plc.len() < 8 {
         return runs;
     }
     let n = (plc.len() - 4) / 8;
     for i in 0..n {
-        let Some(pn_raw) = get_u32(plc, (n + 1) * 4 + i * 4) else { continue };
+        let Some(pn_raw) = get_u32(plc, (n + 1) * 4 + i * 4) else {
+            continue;
+        };
         let pn = (pn_raw & 0x3F_FFFF) as usize;
-        let Some(page) = word_doc.get(pn * 512..pn * 512 + 512) else { continue };
+        let Some(page) = word_doc.get(pn * 512..pn * 512 + 512) else {
+            continue;
+        };
         parse_fkp_page(page, kind, &mut runs);
     }
     runs
@@ -275,19 +289,25 @@ fn parse_fkp_page(page: &[u8], kind: FkpKind, runs: &mut Vec<Run>) {
     }
     let entry_size = if kind == FkpKind::Papx { 13 } else { 1 };
     for k in 0..count {
-        let Some(fc_start) = get_u32(page, k * 4) else { continue };
-        let Some(fc_end) = get_u32(page, (k + 1) * 4) else { continue };
+        let Some(fc_start) = get_u32(page, k * 4) else {
+            continue;
+        };
+        let Some(fc_end) = get_u32(page, (k + 1) * 4) else {
+            continue;
+        };
         let b_offset_pos = (count + 1) * 4 + k * entry_size;
-        let Some(&b_offset) = page.get(b_offset_pos) else { continue };
+        let Some(&b_offset) = page.get(b_offset_pos) else {
+            continue;
+        };
         let mut props = RunProps::default();
         if b_offset != 0 {
             let off = b_offset as usize * 2;
             match kind {
                 FkpKind::Chpx => {
-                    if let Some(&cb) = page.get(off) {
-                        if let Some(grpprl) = page.get(off + 1..off + 1 + cb as usize) {
-                            apply_chp_sprms(grpprl, &mut props);
-                        }
+                    if let Some(&cb) = page.get(off)
+                        && let Some(grpprl) = page.get(off + 1..off + 1 + cb as usize)
+                    {
+                        apply_chp_sprms(grpprl, &mut props);
                     }
                 }
                 FkpKind::Papx => {
@@ -298,11 +318,11 @@ fn parse_fkp_page(page: &[u8], kind: FkpKind, runs: &mut Vec<Run>) {
                         } else {
                             (off + 1, cb as usize * 2 - 1)
                         };
-                        if let Some(grpprl) = page.get(start..start + len) {
-                            if grpprl.len() >= 2 {
-                                props.istd = u16::from_le_bytes([grpprl[0], grpprl[1]]);
-                                apply_pap_sprms(&grpprl[2..], &mut props);
-                            }
+                        if let Some(grpprl) = page.get(start..start + len)
+                            && grpprl.len() >= 2
+                        {
+                            props.istd = u16::from_le_bytes([grpprl[0], grpprl[1]]);
+                            apply_pap_sprms(&grpprl[2..], &mut props);
                         }
                     }
                 }
@@ -334,7 +354,9 @@ fn walk_sprms(grpprl: &[u8], mut f: impl FnMut(u16, &[u8])) {
         let sprm = u16::from_le_bytes([grpprl[pos], grpprl[pos + 1]]);
         pos += 2;
         let len = sprm_operand_len(sprm, &grpprl[pos..]);
-        let Some(operand) = grpprl.get(pos..pos + len) else { break };
+        let Some(operand) = grpprl.get(pos..pos + len) else {
+            break;
+        };
         f(sprm, operand);
         pos += len;
     }
@@ -374,10 +396,10 @@ fn apply_pap_sprms(grpprl: &[u8], props: &mut RunProps) {
         0x2416 => props.in_table = operand.first().is_some_and(|&v| v != 0),
         0x2417 => props.ttp = operand.first().is_some_and(|&v| v != 0),
         0x2640 => {
-            if let Some(&v) = operand.first() {
-                if v < 9 {
-                    props.outline = Some(v + 1);
-                }
+            if let Some(&v) = operand.first()
+                && v < 9
+            {
+                props.outline = Some(v + 1);
             }
         }
         0x260A => props.ilvl = operand.first().copied().unwrap_or(0),
@@ -390,12 +412,20 @@ fn parse_stsh(word_doc: &[u8], table: &[u8]) -> HashMap<u16, u8> {
     let mut map = HashMap::new();
     let fc = get_u32(word_doc, 0xA2).unwrap_or(0) as usize;
     let lcb = get_u32(word_doc, 0xA6).unwrap_or(0) as usize;
-    let Some(stsh) = table.get(fc..fc + lcb) else { return map };
-    let Some(cb_stshi) = get_u16(stsh, 0) else { return map };
-    let Some(cstd) = get_u16(stsh, 2) else { return map };
+    let Some(stsh) = table.get(fc..fc + lcb) else {
+        return map;
+    };
+    let Some(cb_stshi) = get_u16(stsh, 0) else {
+        return map;
+    };
+    let Some(cstd) = get_u16(stsh, 2) else {
+        return map;
+    };
     let mut pos = 2 + cb_stshi as usize;
     for istd in 0..cstd {
-        let Some(cb_std) = get_u16(stsh, pos) else { break };
+        let Some(cb_std) = get_u16(stsh, pos) else {
+            break;
+        };
         pos += 2;
         if cb_std == 0 {
             continue;
@@ -440,7 +470,12 @@ struct ParaBuilder {
 
 impl ParaBuilder {
     fn new() -> Self {
-        ParaBuilder { inlines: Vec::new(), fields: Vec::new(), text: String::new(), style: Style::PLAIN }
+        ParaBuilder {
+            inlines: Vec::new(),
+            fields: Vec::new(),
+            text: String::new(),
+            style: Style::PLAIN,
+        }
     }
 
     fn flush_text(&mut self) {
@@ -475,7 +510,11 @@ impl ParaBuilder {
 
     fn field_begin(&mut self) {
         self.flush_text();
-        self.fields.push(FieldFrame { instr: String::new(), in_result: false, inlines: Vec::new() });
+        self.fields.push(FieldFrame {
+            instr: String::new(),
+            in_result: false,
+            inlines: Vec::new(),
+        });
     }
 
     fn field_separate(&mut self) {
@@ -487,12 +526,15 @@ impl ParaBuilder {
 
     fn field_end(&mut self) {
         self.flush_text();
-        let Some(frame) = self.fields.pop() else { return };
+        let Some(frame) = self.fields.pop() else {
+            return;
+        };
         let url = hyperlink_from_instr(&frame.instr);
-        let result: Vec<Inline> = frame.inlines;
         let out = match url {
-            Some(url) if !inlines_are_empty(&result) => vec![Inline::Link { content: result, url }],
-            _ => result,
+            Some(url) if !inlines_are_empty(&frame.inlines) => {
+                vec![Inline::Link { content: frame.inlines, url }]
+            }
+            _ => frame.inlines,
         };
         for inline in out {
             match self.fields.last_mut() {
@@ -529,7 +571,7 @@ impl Assembler {
 
     fn build_blocks(&self, lo: usize, hi: usize) -> Vec<Block> {
         let mut blocks: Vec<Block> = Vec::new();
-        let mut list_run: Vec<(usize, bool, Block)> = Vec::new();
+        let mut list_run: Vec<ListEntry> = Vec::new();
         let mut cell_blocks: Vec<Block> = Vec::new();
         let mut row: Vec<Cell> = Vec::new();
         let mut table_rows: Vec<Vec<Cell>> = Vec::new();
@@ -606,24 +648,20 @@ impl Assembler {
         props: &RunProps,
         inlines: Vec<Inline>,
         blocks: &mut Vec<Block>,
-        list_run: &mut Vec<(usize, bool, Block)>,
+        list_run: &mut Vec<ListEntry>,
     ) {
         if inlines_are_empty(&inlines) {
             flush_list(blocks, list_run);
             return;
         }
-        let heading = self
-            .heading_styles
-            .get(&props.istd)
-            .copied()
-            .or(props.outline);
+        let heading = self.heading_styles.get(&props.istd).copied().or(props.outline);
         if let Some(level) = heading {
             flush_list(blocks, list_run);
             blocks.push(Block::Heading { level, content: inlines });
             return;
         }
         if props.ilfo != 0 && props.ilfo != 0xF801 {
-            list_run.push((props.ilvl as usize, false, Block::Paragraph(inlines)));
+            list_run.push((props.ilvl as usize, false, 1, Block::Paragraph(inlines)));
             return;
         }
         flush_list(blocks, list_run);
@@ -653,43 +691,4 @@ impl Assembler {
             blocks.push(Block::Table(Table { rows, has_header: false }));
         }
     }
-}
-
-fn flush_list(blocks: &mut Vec<Block>, list_run: &mut Vec<(usize, bool, Block)>) {
-    if list_run.is_empty() {
-        return;
-    }
-    let items = std::mem::take(list_run);
-    if let Some(list) = build_list(&items) {
-        blocks.push(Block::List(list));
-    }
-}
-
-fn build_list(items: &[(usize, bool, Block)]) -> Option<List> {
-    if items.is_empty() {
-        return None;
-    }
-    let min_lvl = items.iter().map(|(l, ..)| *l).min().unwrap();
-    let ordered = items.iter().find(|(l, ..)| *l == min_lvl).map(|(_, o, _)| *o).unwrap_or(false);
-    let mut list = List { ordered, start: 1, items: Vec::new() };
-    let mut i = 0;
-    while i < items.len() {
-        let (lvl, _, block) = &items[i];
-        if *lvl <= min_lvl {
-            list.items.push(ListItem { blocks: vec![block.clone()], checked: None });
-            i += 1;
-        } else {
-            let child_start = i;
-            while i < items.len() && items[i].0 > min_lvl {
-                i += 1;
-            }
-            if let Some(sub) = build_list(&items[child_start..i]) {
-                if list.items.is_empty() {
-                    list.items.push(ListItem { blocks: Vec::new(), checked: None });
-                }
-                list.items.last_mut().unwrap().blocks.push(Block::List(sub));
-            }
-        }
-    }
-    Some(list)
 }

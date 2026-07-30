@@ -42,7 +42,7 @@ fn main() -> ExitCode {
             }
             times.push(start.elapsed().as_secs_f64() * 1000.0);
         }
-        let min = times.iter().cloned().fold(f64::INFINITY, f64::min);
+        let min = times.iter().copied().fold(f64::INFINITY, f64::min);
         let mean: f64 = times.iter().sum::<f64>() / times.len() as f64;
         let in_len = std::fs::metadata(&input).map(|m| m.len()).unwrap_or(0);
         println!("{}\t{}\t{}\t{:.2}\t{:.2}", input.display(), in_len, out_len, min, mean);

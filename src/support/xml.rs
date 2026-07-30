@@ -2,8 +2,8 @@
 //! without their namespace prefix.
 
 use anyhow::Result;
-use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
 
 #[derive(Debug)]
 pub enum Node {
@@ -192,8 +192,7 @@ pub fn parse_xml(xml: &str) -> Result<Element> {
             }
             Event::GeneralRef(e) => {
                 let name = String::from_utf8_lossy(e.as_ref()).into_owned();
-                let resolved =
-                    resolve_entity(&name).unwrap_or_else(|| format!("&{name};"));
+                let resolved = resolve_entity(&name).unwrap_or_else(|| format!("&{name};"));
                 push_text(&mut stack, &mut root, resolved);
             }
             Event::CData(e) => {

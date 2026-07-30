@@ -2,9 +2,10 @@
 
 use crate::ir::*;
 use crate::support::text::{clean_text, collapse_ws};
-use crate::support::xml::{parse_xml, Element, Node};
+use crate::support::xml::{Element, Node, parse_xml};
 use crate::support::zip::read_zip_string;
 use anyhow::{Context, Result};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 
@@ -12,17 +13,17 @@ use std::io::Cursor;
 struct Ctx {
     text_styles: HashMap<String, Style>,
     list_styles: HashMap<String, Vec<bool>>,
-    notes: std::cell::RefCell<Vec<Note>>,
+    notes: RefCell<Vec<Note>>,
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes))?;
 
     let mut ctx = Ctx::default();
-    if let Ok(s) = read_zip_string(&mut zip, "styles.xml") {
-        if let Ok(tree) = parse_xml(&s) {
-            collect_styles(&tree, &mut ctx);
-        }
+    if let Ok(s) = read_zip_string(&mut zip, "styles.xml")
+        && let Ok(tree) = parse_xml(&s)
+    {
+        collect_styles(&tree, &mut ctx);
     }
     let content = read_zip_string(&mut zip, "content.xml")?;
     let tree = parse_xml(&content)?;
@@ -49,30 +50,31 @@ fn collect_styles(tree: &Element, ctx: &mut Ctx) {
     }
     let mut raw: HashMap<&str, (&Element, Option<&str>)> = HashMap::new();
     for style in &style_elems {
-        if style.name == "style" {
-            if let Some(name) = style.attr("name") {
-                raw.insert(name, (style, style.attr("parent-style-name")));
-            }
+        if style.name == "style"
+            && let Some(name) = style.attr("name")
+        {
+            raw.insert(name, (style, style.attr("parent-style-name")));
         }
     }
-    for (name, _) in raw.iter() {
+    for name in raw.keys() {
         let style = resolve_text_style(name, &raw, 0);
         ctx.text_styles.insert((*name).to_string(), style);
     }
     for style in &style_elems {
-        if style.name == "list-style" {
-            if let Some(name) = style.attr("name") {
-                let mut levels = vec![false; 10];
-                for lvl in style.child_elems() {
-                    let ordered = lvl.name == "list-level-style-number";
-                    if let Some(n) = lvl.attr("level").and_then(|v| v.parse::<usize>().ok()) {
-                        if n >= 1 && n <= levels.len() {
-                            levels[n - 1] = ordered;
-                        }
-                    }
+        if style.name == "list-style"
+            && let Some(name) = style.attr("name")
+        {
+            let mut levels = vec![false; 10];
+            for lvl in style.child_elems() {
+                let ordered = lvl.name == "list-level-style-number";
+                if let Some(n) = lvl.attr("level").and_then(|v| v.parse::<usize>().ok())
+                    && n >= 1
+                    && n <= levels.len()
+                {
+                    levels[n - 1] = ordered;
                 }
-                ctx.list_styles.insert(name.to_string(), levels);
             }
+            ctx.list_styles.insert(name.to_string(), levels);
         }
     }
 }
@@ -85,7 +87,9 @@ fn resolve_text_style(
     if depth > 8 {
         return Style::PLAIN;
     }
-    let Some((elem, parent)) = raw.get(name) else { return Style::PLAIN };
+    let Some((elem, parent)) = raw.get(name) else {
+        return Style::PLAIN;
+    };
     let mut style = match parent {
         Some(p) => resolve_text_style(p, raw, depth + 1),
         None => Style::PLAIN,
@@ -115,10 +119,7 @@ fn parse_container(parent: &Element, ctx: &Ctx) -> Vec<Block> {
 fn parse_block_elem(elem: &Element, ctx: &Ctx, blocks: &mut Vec<Block>) {
     match elem.name.as_str() {
         "h" => {
-            let level = elem
-                .attr("outline-level")
-                .and_then(|v| v.parse::<u8>().ok())
-                .unwrap_or(1);
+            let level = elem.attr("outline-level").and_then(|v| v.parse::<u8>().ok()).unwrap_or(1);
             let inlines = parse_inlines(elem, ctx, Style::PLAIN);
             if !inlines_are_empty(&inlines) {
                 blocks.push(Block::Heading { level, content: inlines });
@@ -137,7 +138,12 @@ fn parse_block_elem(elem: &Element, ctx: &Ctx, blocks: &mut Vec<Block>) {
     }
 }
 
-fn parse_list(elem: &Element, ctx: &Ctx, depth: usize, inherited_style: Option<&str>) -> Option<List> {
+fn parse_list(
+    elem: &Element,
+    ctx: &Ctx,
+    depth: usize,
+    inherited_style: Option<&str>,
+) -> Option<List> {
     let style_name = elem.attr("style-name").or(inherited_style);
     let ordered = style_name
         .and_then(|n| ctx.list_styles.get(n))
@@ -212,10 +218,8 @@ fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
             .clamp(1, 100);
         match cell.name.as_str() {
             "table-cell" => {
-                let span: usize = cell
-                    .attr("number-columns-spanned")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(1);
+                let span: usize =
+                    cell.attr("number-columns-spanned").and_then(|v| v.parse().ok()).unwrap_or(1);
                 let blocks = parse_container(cell, ctx);
                 let is_empty = blocks.iter().all(block_is_empty);
                 let repeat = if is_empty { 1 } else { repeat };
@@ -284,10 +288,8 @@ fn walk_inlines(elem: &Element, ctx: &Ctx, style: Style, out: &mut Vec<Inline>) 
                 "line-break" => out.push(Inline::LineBreak),
                 "note" => {
                     let idx = ctx.notes.borrow().len();
-                    let id = child
-                        .attr("id")
-                        .map(String::from)
-                        .unwrap_or_else(|| format!("odt{idx}"));
+                    let id =
+                        child.attr("id").map(String::from).unwrap_or_else(|| format!("odt{idx}"));
                     let blocks = child
                         .find("note-body")
                         .map(|b| parse_container(b, ctx))

@@ -2,8 +2,9 @@
 
 use crate::ir::*;
 use crate::support::fields::hyperlink_from_instr;
+use crate::support::list::{ListEntry, flush_list};
 use crate::support::text::clean_text;
-use crate::support::xml::{parse_xml, Element};
+use crate::support::xml::{Element, parse_xml};
 use crate::support::zip::read_zip_string;
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -27,15 +28,15 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
 
     let mut numbering = HashMap::new();
     let mut heading_styles = HashMap::new();
-    if let Ok(s) = read_zip_string(&mut zip, "word/numbering.xml") {
-        if let Ok(tree) = parse_xml(&s) {
-            numbering = parse_numbering(&tree);
-        }
+    if let Ok(s) = read_zip_string(&mut zip, "word/numbering.xml")
+        && let Ok(tree) = parse_xml(&s)
+    {
+        numbering = parse_numbering(&tree);
     }
-    if let Ok(s) = read_zip_string(&mut zip, "word/styles.xml") {
-        if let Ok(tree) = parse_xml(&s) {
-            heading_styles = parse_styles(&tree);
-        }
+    if let Ok(s) = read_zip_string(&mut zip, "word/styles.xml")
+        && let Ok(tree) = parse_xml(&s)
+    {
+        heading_styles = parse_styles(&tree);
     }
     let part_ctx = |zip: &mut zip::ZipArchive<Cursor<&[u8]>>, rels_name: &str| Ctx {
         rels: read_zip_string(zip, rels_name)
@@ -50,10 +51,8 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let ctx = part_ctx(&mut zip, "word/_rels/document.xml.rels");
     let xml = read_zip_string(&mut zip, "word/document.xml")?;
     let tree = parse_xml(&xml)?;
-    let body = tree
-        .find("document")
-        .and_then(|d| d.find("body"))
-        .context("document.xml has no body")?;
+    let body =
+        tree.find("document").and_then(|d| d.find("body")).context("document.xml has no body")?;
     let blocks = parse_blocks(body, &ctx);
 
     let mut notes = Vec::new();
@@ -61,9 +60,13 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         ("word/footnotes.xml", "footnotes", "footnote", "fn"),
         ("word/endnotes.xml", "endnotes", "endnote", "en"),
     ] {
-        let Ok(s) = read_zip_string(&mut zip, part) else { continue };
+        let Ok(s) = read_zip_string(&mut zip, part) else {
+            continue;
+        };
         let Ok(tree) = parse_xml(&s) else { continue };
-        let Some(root) = tree.find(root_name) else { continue };
+        let Some(root) = tree.find(root_name) else {
+            continue;
+        };
         let rels_name = format!("word/_rels/{}.rels", part.trim_start_matches("word/"));
         let note_ctx = part_ctx(&mut zip, &rels_name);
         for note in root.find_all(elem_name) {
@@ -74,10 +77,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
                 continue;
             }
             let Some(id) = note.attr("id") else { continue };
-            notes.push(Note {
-                id: format!("{prefix}{id}"),
-                blocks: parse_blocks(note, &note_ctx),
-            });
+            notes.push(Note { id: format!("{prefix}{id}"), blocks: parse_blocks(note, &note_ctx) });
         }
     }
 
@@ -101,7 +101,9 @@ fn parse_numbering(tree: &Element) -> HashMap<String, Vec<LevelDef>> {
     };
     let mut abstracts: HashMap<&str, Vec<LevelDef>> = HashMap::new();
     for abs in root.find_all("abstractNum") {
-        let Some(id) = abs.attr("abstractNumId") else { continue };
+        let Some(id) = abs.attr("abstractNumId") else {
+            continue;
+        };
         let mut levels = vec![LevelDef { ordered: false, start: 1 }; 9];
         for lvl in abs.find_all("lvl") {
             let ilvl: usize = lvl.attr("ilvl").and_then(|v| v.parse().ok()).unwrap_or(0);
@@ -109,15 +111,23 @@ fn parse_numbering(tree: &Element) -> HashMap<String, Vec<LevelDef>> {
                 continue;
             }
             let fmt = lvl.find("numFmt").and_then(|e| e.attr("val")).unwrap_or("bullet");
-            let start = lvl.find("start").and_then(|e| e.attr("val")).and_then(|v| v.parse().ok()).unwrap_or(1);
+            let start = lvl
+                .find("start")
+                .and_then(|e| e.attr("val"))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1);
             levels[ilvl] = LevelDef { ordered: !matches!(fmt, "bullet" | "none"), start };
         }
         abstracts.insert(id, levels);
     }
     let mut out = HashMap::new();
     for num in root.find_all("num") {
-        let Some(num_id) = num.attr("numId") else { continue };
-        let Some(abs_id) = num.find("abstractNumId").and_then(|e| e.attr("val")) else { continue };
+        let Some(num_id) = num.attr("numId") else {
+            continue;
+        };
+        let Some(abs_id) = num.find("abstractNumId").and_then(|e| e.attr("val")) else {
+            continue;
+        };
         if let Some(levels) = abstracts.get(abs_id) {
             out.insert(num_id.to_string(), levels.clone());
         }
@@ -127,10 +137,15 @@ fn parse_numbering(tree: &Element) -> HashMap<String, Vec<LevelDef>> {
 
 fn parse_styles(tree: &Element) -> HashMap<String, u8> {
     let mut map = HashMap::new();
-    let Some(root) = tree.find("styles") else { return map };
+    let Some(root) = tree.find("styles") else {
+        return map;
+    };
     for style in root.find_all("style") {
-        let Some(id) = style.attr("styleId") else { continue };
-        let name = style.find("name").and_then(|e| e.attr("val")).unwrap_or("").to_ascii_lowercase();
+        let Some(id) = style.attr("styleId") else {
+            continue;
+        };
+        let name =
+            style.find("name").and_then(|e| e.attr("val")).unwrap_or("").to_ascii_lowercase();
         let level = if let Some(rest) = name.strip_prefix("heading ") {
             rest.trim().parse::<u8>().ok()
         } else if name == "title" {
@@ -159,7 +174,7 @@ enum ParaKind {
 
 fn parse_blocks(parent: &Element, ctx: &Ctx) -> Vec<Block> {
     let mut blocks: Vec<Block> = Vec::new();
-    let mut list_run: Vec<(usize, bool, u64, Block)> = Vec::new();
+    let mut list_run: Vec<ListEntry> = Vec::new();
     collect_blocks(parent, ctx, &mut blocks, &mut list_run);
     flush_list(&mut blocks, &mut list_run);
     blocks
@@ -169,7 +184,7 @@ fn collect_blocks(
     parent: &Element,
     ctx: &Ctx,
     blocks: &mut Vec<Block>,
-    list_run: &mut Vec<(usize, bool, u64, Block)>,
+    list_run: &mut Vec<ListEntry>,
 ) {
     for child in parent.child_elems() {
         match child.name.as_str() {
@@ -205,44 +220,6 @@ fn collect_blocks(
     }
 }
 
-fn flush_list(blocks: &mut Vec<Block>, list_run: &mut Vec<(usize, bool, u64, Block)>) {
-    if list_run.is_empty() {
-        return;
-    }
-    let items = std::mem::take(list_run);
-    if let Some(list) = build_list(&items) {
-        blocks.push(Block::List(list));
-    }
-}
-
-fn build_list(items: &[(usize, bool, u64, Block)]) -> Option<List> {
-    if items.is_empty() {
-        return None;
-    }
-    let min_lvl = items.iter().map(|(l, ..)| *l).min().unwrap();
-    let (_, ordered, start, _) = items.iter().find(|(l, ..)| *l == min_lvl).unwrap();
-    let mut list = List { ordered: *ordered, start: *start, items: Vec::new() };
-    let mut i = 0;
-    while i < items.len() {
-        let (lvl, _, _, block) = &items[i];
-        if *lvl <= min_lvl {
-            list.items.push(ListItem { blocks: vec![block.clone()], checked: None });
-            i += 1;
-        } else {
-            let child_start = i;
-            while i < items.len() && items[i].0 > min_lvl {
-                i += 1;
-            }
-            let sublist = build_list(&items[child_start..i])?;
-            if list.items.is_empty() {
-                list.items.push(ListItem { blocks: Vec::new(), checked: None });
-            }
-            list.items.last_mut().unwrap().blocks.push(Block::List(sublist));
-        }
-    }
-    Some(list)
-}
-
 fn parse_paragraph(p: &Element, ctx: &Ctx) -> (ParaKind, Vec<Inline>) {
     let mut kind = ParaKind::Plain;
     if let Some(ppr) = p.find("pPr") {
@@ -260,7 +237,11 @@ fn parse_paragraph(p: &Element, ctx: &Ctx) -> (ParaKind, Vec<Inline>) {
             kind = ParaKind::Heading(level);
         } else if let Some(numpr) = ppr.find("numPr") {
             let num_id = numpr.find("numId").and_then(|e| e.attr("val")).unwrap_or("");
-            let ilvl: usize = numpr.find("ilvl").and_then(|e| e.attr("val")).and_then(|v| v.parse().ok()).unwrap_or(0);
+            let ilvl: usize = numpr
+                .find("ilvl")
+                .and_then(|e| e.attr("val"))
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0);
             if num_id != "0" {
                 let def = ctx
                     .numbering
@@ -309,7 +290,8 @@ impl<'a> InlineWalker<'a> {
                         .and_then(|id| self.ctx.rels.get(id).cloned())
                         .or_else(|| child.attr("anchor").map(|a| format!("#{a}")))
                         .unwrap_or_default();
-                    let mut inner = InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
+                    let mut inner =
+                        InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
                     inner.walk(child);
                     let content = inner.finish();
                     if !content.is_empty() {
@@ -318,7 +300,8 @@ impl<'a> InlineWalker<'a> {
                 }
                 "fldSimple" => {
                     let instr = child.attr("instr").unwrap_or("").to_string();
-                    let mut inner = InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
+                    let mut inner =
+                        InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
                     inner.walk(child);
                     let content = inner.finish();
                     self.push_field_result(&instr, content);
@@ -362,8 +345,7 @@ impl<'a> InlineWalker<'a> {
                     }
                 }
                 "drawing" => {
-                    let doc_pr = child.descendants("docPr");
-                    let doc_pr = doc_pr.first();
+                    let doc_pr = child.descendants("docPr").into_iter().next();
                     let descr = doc_pr.and_then(|d| d.attr("descr")).unwrap_or("");
                     let name = doc_pr.and_then(|d| d.attr("name")).unwrap_or("");
                     let alt = if !descr.trim().is_empty() {
@@ -435,11 +417,24 @@ impl<'a> InlineWalker<'a> {
 /// Auto-generated names like "Picture 3" or "Graphic 1" carry no information.
 fn is_generic_image_name(name: &str) -> bool {
     let mut words = name.split_whitespace();
-    let Some(first) = words.next() else { return true };
+    let Some(first) = words.next() else {
+        return true;
+    };
     let generic = matches!(
         first.to_ascii_lowercase().as_str(),
-        "picture" | "image" | "graphic" | "grafik" | "bild" | "imagen" | "immagine" | "obraz"
-            | "chart" | "diagram" | "shape" | "textbox" | "object"
+        "picture"
+            | "image"
+            | "graphic"
+            | "grafik"
+            | "bild"
+            | "imagen"
+            | "immagine"
+            | "obraz"
+            | "chart"
+            | "diagram"
+            | "shape"
+            | "textbox"
+            | "object"
     );
     generic && words.all(|w| w.chars().all(|c| c.is_ascii_digit()))
 }

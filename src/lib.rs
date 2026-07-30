@@ -6,7 +6,7 @@ mod formats;
 mod markdown;
 mod support;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
 pub use markdown::document_to_markdown;

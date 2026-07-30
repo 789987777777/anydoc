@@ -8,8 +8,8 @@ mod odf;
 mod rtf;
 mod sheet;
 
-use crate::ir::Document;
 use crate::Format;
+use crate::ir::Document;
 use anyhow::Result;
 
 pub fn parse(bytes: &[u8], format: Format) -> Result<Document> {

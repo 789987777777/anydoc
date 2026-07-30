@@ -1,7 +1,7 @@
 //! The single IR -> GitHub-Flavored Markdown serializer.
 
 use crate::ir::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Footnote id -> rendered number, shared by all render functions.
 type NoteNumbers = HashMap<String, usize>;
@@ -14,11 +14,8 @@ pub fn document_to_markdown(doc: &Document) -> String {
             parts.push(s);
         }
     }
-    let mut ordered: Vec<(&Note, usize)> = doc
-        .notes
-        .iter()
-        .filter_map(|n| nums.get(&n.id).map(|&num| (n, num)))
-        .collect();
+    let mut ordered: Vec<(&Note, usize)> =
+        doc.notes.iter().filter_map(|n| nums.get(&n.id).map(|&num| (n, num))).collect();
     ordered.sort_by_key(|(_, num)| *num);
     for (note, num) in ordered {
         let body = render_blocks(&note.blocks, &nums);
@@ -53,7 +50,7 @@ fn number_notes(doc: &Document) -> NoteNumbers {
         .map(|n| (n.id.as_str(), n))
         .collect();
     let mut order: Vec<String> = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     collect_note_refs(&doc.blocks, &valid, &mut order, &mut seen);
     for note in &doc.notes {
         if valid.contains_key(note.id.as_str()) && seen.insert(note.id.clone()) {
@@ -74,13 +71,13 @@ fn collect_note_refs(
     blocks: &[Block],
     valid: &HashMap<&str, &Note>,
     order: &mut Vec<String>,
-    seen: &mut std::collections::HashSet<String>,
+    seen: &mut HashSet<String>,
 ) {
     fn walk_inlines(
         inlines: &[Inline],
         valid: &HashMap<&str, &Note>,
         order: &mut Vec<String>,
-        seen: &mut std::collections::HashSet<String>,
+        seen: &mut HashSet<String>,
     ) {
         for inline in inlines {
             match inline {
@@ -155,11 +152,7 @@ fn render_block(block: &Block, nums: &NoteNumbers) -> Option<String> {
             Some(quoted.join("\n"))
         }
         Block::CodeBlock { lang, text } => {
-            let longest_run = text
-                .split(|c| c != '`')
-                .map(str::len)
-                .max()
-                .unwrap_or(0);
+            let longest_run = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
             let fence = "`".repeat((longest_run + 1).max(3));
             let lang = lang.as_deref().unwrap_or("");
             let body = text.trim_end_matches('\n');
@@ -336,11 +329,8 @@ fn cell_block_text(block: &Block, nums: &NoteNumbers, parts: &mut Vec<String>) {
         }
         Block::Table(table) => {
             for row in &table.rows {
-                let cells: Vec<String> = row
-                    .iter()
-                    .map(|c| render_cell(c, nums))
-                    .filter(|c| !c.is_empty())
-                    .collect();
+                let cells: Vec<String> =
+                    row.iter().map(|c| render_cell(c, nums)).filter(|c| !c.is_empty()).collect();
                 if !cells.is_empty() {
                     parts.push(cells.join(" / "));
                 }
@@ -457,11 +447,11 @@ fn normalize_pass(inlines: &[Inline]) -> Vec<Norm> {
                     continue;
                 }
                 let style = if text.trim().is_empty() { Style::PLAIN } else { *style };
-                if let Some(Norm::Text { text: prev, style: prev_style }) = out.last_mut() {
-                    if *prev_style == style {
-                        prev.push_str(text);
-                        continue;
-                    }
+                if let Some(Norm::Text { text: prev, style: prev_style }) = out.last_mut()
+                    && *prev_style == style
+                {
+                    prev.push_str(text);
+                    continue;
                 }
                 out.push(Norm::Text { text: text.clone(), style });
             }
@@ -471,7 +461,9 @@ fn normalize_pass(inlines: &[Inline]) -> Vec<Norm> {
                 }
                 out.push(Norm::Link { content: content.clone(), url: url.clone() });
             }
-            Inline::Image { alt, url } => out.push(Norm::Image { alt: alt.clone(), url: url.clone() }),
+            Inline::Image { alt, url } => {
+                out.push(Norm::Image { alt: alt.clone(), url: url.clone() })
+            }
             Inline::NoteRef(id) => out.push(Norm::NoteRef(id.clone())),
             Inline::LineBreak => out.push(Norm::LineBreak),
         }
@@ -563,9 +555,7 @@ fn escape_text(text: &str, ctx: InlineContext, at_line_start: bool) -> String {
                     j += 1;
                 }
                 if j < chars.len() && (chars[j] == '.' || chars[j] == ')') {
-                    for k in i..j {
-                        out.push(chars[k]);
-                    }
+                    out.extend(&chars[i..j]);
                     out.push('\\');
                     out.push(chars[j]);
                     i = j + 1;
@@ -658,19 +648,13 @@ mod tests {
 
     #[test]
     fn bold_trailing_space_moved_out() {
-        let md = doc(vec![Block::Paragraph(vec![
-            styled("bold ", BOLD),
-            Inline::plain("plain"),
-        ])]);
+        let md = doc(vec![Block::Paragraph(vec![styled("bold ", BOLD), Inline::plain("plain")])]);
         assert_eq!(md, "**bold** plain\n");
     }
 
     #[test]
     fn adjacent_same_style_runs_merged() {
-        let md = doc(vec![Block::Paragraph(vec![
-            styled("bo", BOLD),
-            styled("ld", BOLD),
-        ])]);
+        let md = doc(vec![Block::Paragraph(vec![styled("bo", BOLD), styled("ld", BOLD)])]);
         assert_eq!(md, "**bold**\n");
     }
 
@@ -706,8 +690,14 @@ mod tests {
     fn table_basic() {
         let md = doc(vec![Block::Table(Table {
             rows: vec![
-                vec![Cell::from_inlines(vec![Inline::plain("Name")]), Cell::from_inlines(vec![Inline::plain("Age")])],
-                vec![Cell::from_inlines(vec![Inline::plain("Ann | Bob")]), Cell::from_inlines(vec![Inline::plain("30")])],
+                vec![
+                    Cell::from_inlines(vec![Inline::plain("Name")]),
+                    Cell::from_inlines(vec![Inline::plain("Age")]),
+                ],
+                vec![
+                    Cell::from_inlines(vec![Inline::plain("Ann | Bob")]),
+                    Cell::from_inlines(vec![Inline::plain("30")]),
+                ],
             ],
             has_header: true,
         })]);
@@ -719,7 +709,10 @@ mod tests {
         let md = doc(vec![Block::Table(Table {
             rows: vec![
                 vec![Cell::from_inlines(vec![Inline::plain("a")])],
-                vec![Cell::from_inlines(vec![Inline::plain("b")]), Cell::from_inlines(vec![Inline::plain("c")])],
+                vec![
+                    Cell::from_inlines(vec![Inline::plain("b")]),
+                    Cell::from_inlines(vec![Inline::plain("c")]),
+                ],
             ],
             has_header: false,
         })]);
@@ -763,10 +756,8 @@ mod tests {
 
     #[test]
     fn code_span_with_backticks() {
-        let md = doc(vec![Block::Paragraph(vec![styled(
-            "a`b",
-            Style { code: true, ..Style::PLAIN },
-        )])]);
+        let md =
+            doc(vec![Block::Paragraph(vec![styled("a`b", Style { code: true, ..Style::PLAIN })])]);
         assert_eq!(md, "``a`b``\n");
     }
 
@@ -792,7 +783,8 @@ mod tests {
 
     #[test]
     fn blockquote() {
-        let md = doc(vec![Block::BlockQuote(vec![Block::Paragraph(vec![Inline::plain("quoted")])])]);
+        let md =
+            doc(vec![Block::BlockQuote(vec![Block::Paragraph(vec![Inline::plain("quoted")])])]);
         assert_eq!(md, "> quoted\n");
     }
 
@@ -822,7 +814,10 @@ mod tests {
                 Inline::NoteRef("a".into()),
             ])],
             notes: vec![
-                Note { id: "a".into(), blocks: vec![Block::Paragraph(vec![Inline::plain("Second note.")])] },
+                Note {
+                    id: "a".into(),
+                    blocks: vec![Block::Paragraph(vec![Inline::plain("Second note.")])],
+                },
                 Note {
                     id: "b".into(),
                     blocks: vec![
@@ -847,7 +842,10 @@ mod tests {
             ])],
             notes: vec![
                 Note { id: "empty".into(), blocks: vec![Block::Paragraph(vec![])] },
-                Note { id: "orphan".into(), blocks: vec![Block::Paragraph(vec![Inline::plain("Kept.")])] },
+                Note {
+                    id: "orphan".into(),
+                    blocks: vec![Block::Paragraph(vec![Inline::plain("Kept.")])],
+                },
             ],
         });
         assert_eq!(md, "Text\n\n[^1]: Kept.\n");
@@ -859,8 +857,14 @@ mod tests {
             ordered: false,
             start: 1,
             items: vec![
-                ListItem { blocks: vec![Block::Paragraph(vec![Inline::plain("done")])], checked: Some(true) },
-                ListItem { blocks: vec![Block::Paragraph(vec![Inline::plain("todo")])], checked: Some(false) },
+                ListItem {
+                    blocks: vec![Block::Paragraph(vec![Inline::plain("done")])],
+                    checked: Some(true),
+                },
+                ListItem {
+                    blocks: vec![Block::Paragraph(vec![Inline::plain("todo")])],
+                    checked: Some(false),
+                },
             ],
         })]);
         assert_eq!(md, "- [x] done\n- [ ] todo\n");

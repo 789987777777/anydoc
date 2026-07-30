@@ -1,9 +1,9 @@
 //! Spreadsheets (xlsx, xlsm, xlsb, xls, ods) via calamine.
 
-use crate::ir::{Block, Cell, Document, Inline, Table};
+use crate::ir::{Block, Cell, Document, Inline, Table, inlines_are_empty};
 use crate::support::text::clean_text;
 use anyhow::Result;
-use calamine::{open_workbook_auto_from_rs, Data, Reader};
+use calamine::{Data, Reader, open_workbook_auto_from_rs};
 use std::io::Cursor;
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
@@ -44,7 +44,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
 
 fn cell_is_empty(cell: &Cell) -> bool {
     match cell.blocks.as_slice() {
-        [Block::Paragraph(inlines)] => crate::ir::inlines_are_empty(inlines),
+        [Block::Paragraph(inlines)] => inlines_are_empty(inlines),
         [] => true,
         _ => false,
     }

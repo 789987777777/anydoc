@@ -2,8 +2,9 @@
 
 use crate::ir::*;
 use crate::support::fields::hyperlink_from_instr;
+use crate::support::list::{ListEntry, flush_list};
 use crate::support::text::clean_text;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
     if !bytes.starts_with(b"{\\rtf") {
@@ -74,7 +75,7 @@ struct Parser<'a> {
 
     inlines: Vec<Inline>,
     blocks: Vec<Block>,
-    list_run: Vec<(usize, bool, Block)>,
+    list_run: Vec<ListEntry>,
     cell_blocks: Vec<Block>,
     row: Vec<Cell>,
     table_rows: Vec<Vec<Cell>>,
@@ -178,7 +179,9 @@ impl<'a> Parser<'a> {
     }
 
     fn control(&mut self) {
-        let Some(&b) = self.bytes.get(self.pos) else { return };
+        let Some(&b) = self.bytes.get(self.pos) else {
+            return;
+        };
         if !b.is_ascii_alphabetic() {
             self.pos += 1;
             match b {
@@ -218,7 +221,9 @@ impl<'a> Parser<'a> {
             self.pos += 1;
         }
         if self.pos > num_start {
-            if let Ok(n) = std::str::from_utf8(&self.bytes[num_start..self.pos]).unwrap_or("0").parse::<i32>() {
+            if let Ok(n) =
+                std::str::from_utf8(&self.bytes[num_start..self.pos]).unwrap_or("0").parse::<i32>()
+            {
                 param = Some(if negative { -n } else { n });
             }
         } else if negative {
@@ -307,10 +312,10 @@ impl<'a> Parser<'a> {
             }
             "intbl" => self.state.in_table = true,
             "outlinelevel" => {
-                if let Some(n) = param {
-                    if (0..9).contains(&n) {
-                        self.state.outline = Some((n + 1) as u8);
-                    }
+                if let Some(n) = param
+                    && (0..9).contains(&n)
+                {
+                    self.state.outline = Some((n + 1) as u8);
                 }
             }
             "ilvl" => self.state.ilvl = param.unwrap_or(0).clamp(0, 8) as usize,
@@ -356,18 +361,16 @@ impl<'a> Parser<'a> {
                 self.state.in_note = true;
                 self.state.suppress = false;
                 self.state.capture = Capture::None;
-                self.note_frames.push(NoteFrame {
-                    depth: self.stack.len(),
-                    start: self.inlines.len(),
-                });
+                self.note_frames
+                    .push(NoteFrame { depth: self.stack.len(), start: self.inlines.len() });
             }
             "chftn" | "ftnalt" => {}
             "fonttbl" | "colortbl" | "stylesheet" | "info" | "pict" | "object" | "header"
             | "footer" | "headerl" | "headerr" | "headerf" | "footerl" | "footerr" | "footerf"
             | "ftnsep" | "ftnsepc" | "aftnsep" | "aftnsepc" | "xmlnstbl" | "themedata"
             | "colorschememapping" | "datastore" | "latentstyles" | "listtable"
-            | "listoverridetable" | "rsidtbl" | "generator" | "filetbl" | "revtbl" | "datafield"
-            | "bkmkstart" | "bkmkend" | "annotation" | "atnid" | "atnauthor"
+            | "listoverridetable" | "rsidtbl" | "generator" | "filetbl" | "revtbl"
+            | "datafield" | "bkmkstart" | "bkmkend" | "annotation" | "atnid" | "atnauthor"
             | "template" | "defchp" | "defpap" | "panose" | "falt" | "objdata" | "blipuid"
             | "nonshppict" | "wgrffmtfilter" | "pgdsctbl" | "docvar" | "sp" | "sn" | "sv"
             | "shpinst" | "background" | "userprops" | "operator" | "author" | "title"
@@ -458,7 +461,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => self.state.list_ordered,
             };
-            self.list_run.push((self.state.ilvl, ordered, Block::Paragraph(inlines)));
+            self.list_run.push((self.state.ilvl, ordered, 1, Block::Paragraph(inlines)));
             return;
         }
         self.flush_list();
@@ -500,13 +503,7 @@ impl<'a> Parser<'a> {
     }
 
     fn flush_list(&mut self) {
-        if self.list_run.is_empty() {
-            return;
-        }
-        let items = std::mem::take(&mut self.list_run);
-        if let Some(list) = build_list(&items) {
-            self.blocks.push(Block::List(list));
-        }
+        flush_list(&mut self.blocks, &mut self.list_run);
     }
 
     fn finish(mut self) -> Document {
@@ -518,35 +515,6 @@ impl<'a> Parser<'a> {
         self.flush_list();
         Document { blocks: self.blocks, notes: self.notes }
     }
-}
-
-fn build_list(items: &[(usize, bool, Block)]) -> Option<List> {
-    if items.is_empty() {
-        return None;
-    }
-    let min_lvl = items.iter().map(|(l, ..)| *l).min().unwrap();
-    let ordered = items.iter().find(|(l, ..)| *l == min_lvl).map(|(_, o, _)| *o).unwrap_or(false);
-    let mut list = List { ordered, start: 1, items: Vec::new() };
-    let mut i = 0;
-    while i < items.len() {
-        let (lvl, _, block) = &items[i];
-        if *lvl <= min_lvl {
-            list.items.push(ListItem { blocks: vec![block.clone()], checked: None });
-            i += 1;
-        } else {
-            let child_start = i;
-            while i < items.len() && items[i].0 > min_lvl {
-                i += 1;
-            }
-            if let Some(sub) = build_list(&items[child_start..i]) {
-                if list.items.is_empty() {
-                    list.items.push(ListItem { blocks: Vec::new(), checked: None });
-                }
-                list.items.last_mut().unwrap().blocks.push(Block::List(sub));
-            }
-        }
-    }
-    Some(list)
 }
 
 fn codepage_encoding(cp: u32) -> &'static encoding_rs::Encoding {

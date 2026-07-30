@@ -1,12 +1,15 @@
+//! CSV and friends (semicolon, tab, pipe delimited), with delimiter sniffing.
+
 use crate::ir::{Block, Cell, Document, Inline, Table};
 use crate::support::text::clean_text;
 use anyhow::Result;
+use csv::ReaderBuilder;
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
     let text = decode(bytes);
     let delimiter = sniff_delimiter(&text);
 
-    let mut reader = ::csv::ReaderBuilder::new()
+    let mut reader = ReaderBuilder::new()
         .has_headers(false)
         .flexible(true)
         .delimiter(delimiter)
