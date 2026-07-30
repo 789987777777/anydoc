@@ -8,7 +8,6 @@ use crate::support::text::{clean_text, collapse_ws};
 use crate::support::xml::{Element, Node, parse_xml};
 use crate::support::zip::read_zip_string;
 use anyhow::{Context, Result};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 
@@ -16,7 +15,7 @@ use std::io::Cursor;
 struct Ctx {
     text_styles: HashMap<String, Style>,
     list_styles: HashMap<String, Vec<bool>>,
-    notes: RefCell<Vec<Note>>,
+    notes: Vec<Note>,
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Document> {
@@ -38,16 +37,16 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         .context("content.xml has no office:body")?;
 
     let blocks = if let Some(text) = body.find("text") {
-        parse_container(text, &ctx)
+        parse_container(text, &mut ctx)
     } else if let Some(sheet) = body.find("spreadsheet") {
-        parse_spreadsheet(sheet, &ctx)
+        parse_spreadsheet(sheet, &mut ctx)
     } else {
         anyhow::bail!("content.xml has no office:text or office:spreadsheet body");
     };
-    Ok(Document { blocks, notes: ctx.notes.into_inner() })
+    Ok(Document { blocks, notes: ctx.notes })
 }
 
-fn parse_spreadsheet(sheet: &Element, ctx: &Ctx) -> Vec<Block> {
+fn parse_spreadsheet(sheet: &Element, ctx: &mut Ctx) -> Vec<Block> {
     let tables: Vec<&Element> = sheet.child_elems().filter(|e| e.name == "table").collect();
     let multi_sheet = tables.len() > 1;
     let mut blocks = Vec::new();
@@ -116,7 +115,7 @@ fn apply_text_props(elem: &Element, style: &mut Style) {
     }
 }
 
-fn parse_container(parent: &Element, ctx: &Ctx) -> Vec<Block> {
+fn parse_container(parent: &Element, ctx: &mut Ctx) -> Vec<Block> {
     let mut blocks = Vec::new();
     for child in parent.child_elems() {
         parse_block_elem(child, ctx, &mut blocks);
@@ -124,7 +123,7 @@ fn parse_container(parent: &Element, ctx: &Ctx) -> Vec<Block> {
     blocks
 }
 
-fn parse_block_elem(elem: &Element, ctx: &Ctx, blocks: &mut Vec<Block>) {
+fn parse_block_elem(elem: &Element, ctx: &mut Ctx, blocks: &mut Vec<Block>) {
     match elem.name.as_str() {
         "h" => {
             let level = elem.attr("outline-level").and_then(|v| v.parse::<u8>().ok()).unwrap_or(1);
@@ -148,7 +147,7 @@ fn parse_block_elem(elem: &Element, ctx: &Ctx, blocks: &mut Vec<Block>) {
 
 fn parse_list(
     elem: &Element,
-    ctx: &Ctx,
+    ctx: &mut Ctx,
     depth: usize,
     inherited_style: Option<&str>,
 ) -> Option<List> {
@@ -177,7 +176,7 @@ fn parse_list(
     if list.items.is_empty() { None } else { Some(list) }
 }
 
-fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
+fn parse_table(elem: &Element, ctx: &mut Ctx) -> Vec<Block> {
     let mut rows: Vec<Vec<Cell>> = Vec::new();
     let mut has_header = false;
     for child in elem.child_elems() {
@@ -215,7 +214,7 @@ fn parse_table(elem: &Element, ctx: &Ctx) -> Vec<Block> {
     vec![Block::Table(Table { rows, has_header })]
 }
 
-fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
+fn parse_row(row: &Element, ctx: &mut Ctx) -> Vec<Cell> {
     let mut cells = Vec::new();
     for cell in row.child_elems() {
         let repeat: usize =
@@ -247,13 +246,13 @@ fn parse_row(row: &Element, ctx: &Ctx) -> Vec<Cell> {
     cells
 }
 
-fn parse_inlines(elem: &Element, ctx: &Ctx, style: Style) -> Vec<Inline> {
+fn parse_inlines(elem: &Element, ctx: &mut Ctx, style: Style) -> Vec<Inline> {
     let mut out = Vec::new();
     walk_inlines(elem, ctx, style, &mut out);
     out
 }
 
-fn walk_inlines(elem: &Element, ctx: &Ctx, style: Style, out: &mut Vec<Inline>) {
+fn walk_inlines(elem: &Element, ctx: &mut Ctx, style: Style, out: &mut Vec<Inline>) {
     for node in &elem.children {
         match node {
             Node::Text(t) => {
@@ -290,14 +289,14 @@ fn walk_inlines(elem: &Element, ctx: &Ctx, style: Style, out: &mut Vec<Inline>) 
                 "tab" => out.push(Inline::Text { text: " ".into(), style: Style::PLAIN }),
                 "line-break" => out.push(Inline::LineBreak),
                 "note" => {
-                    let idx = ctx.notes.borrow().len();
+                    let idx = ctx.notes.len();
                     let id =
                         child.attr("id").map(String::from).unwrap_or_else(|| format!("odt{idx}"));
                     let blocks = child
                         .find("note-body")
                         .map(|b| parse_container(b, ctx))
                         .unwrap_or_default();
-                    ctx.notes.borrow_mut().push(Note { id: id.clone(), blocks });
+                    ctx.notes.push(Note { id: id.clone(), blocks });
                     out.push(Inline::NoteRef(id));
                 }
                 "annotation" | "tracked-changes" | "soft-page-break" => {}
