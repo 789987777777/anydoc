@@ -46,8 +46,9 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let total_cp = ccp_text + ccp_ftn + ccp_hdd + ccp_mcr + ccp_atn + ccp_edn;
     let (chars, fcs) = extract_text(&word_doc, &pieces, total_cp);
 
-    let chpx_runs = parse_fkps(&word_doc, &table, 0xFA, FkpKind::Chpx);
-    let papx_runs = parse_fkps(&word_doc, &table, 0x102, FkpKind::Papx);
+    let data = read_stream(&mut ole, "Data").unwrap_or_default();
+    let chpx_runs = parse_fkps(&word_doc, &table, &data, 0xFA, FkpKind::Chpx);
+    let papx_runs = parse_fkps(&word_doc, &table, &data, 0x102, FkpKind::Papx);
     let heading_styles = parse_stsh(&word_doc, &table);
 
     let mut note_refs: HashMap<usize, String> = HashMap::new();
@@ -252,7 +253,13 @@ impl Runs {
     }
 }
 
-fn parse_fkps(word_doc: &[u8], table: &[u8], fib_off: usize, kind: FkpKind) -> Vec<Run> {
+fn parse_fkps(
+    word_doc: &[u8],
+    table: &[u8],
+    data: &[u8],
+    fib_off: usize,
+    kind: FkpKind,
+) -> Vec<Run> {
     let mut runs = Vec::new();
     let fc = get_u32(word_doc, fib_off).unwrap_or(0) as usize;
     let lcb = get_u32(word_doc, fib_off + 4).unwrap_or(0) as usize;
@@ -271,12 +278,12 @@ fn parse_fkps(word_doc: &[u8], table: &[u8], fib_off: usize, kind: FkpKind) -> V
         let Some(page) = word_doc.get(pn * 512..pn * 512 + 512) else {
             continue;
         };
-        parse_fkp_page(page, kind, &mut runs);
+        parse_fkp_page(page, data, kind, &mut runs);
     }
     runs
 }
 
-fn parse_fkp_page(page: &[u8], kind: FkpKind, runs: &mut Vec<Run>) {
+fn parse_fkp_page(page: &[u8], data: &[u8], kind: FkpKind, runs: &mut Vec<Run>) {
     let count = page[511] as usize;
     if count == 0 {
         return;
@@ -316,7 +323,7 @@ fn parse_fkp_page(page: &[u8], kind: FkpKind, runs: &mut Vec<Run>) {
                             && grpprl.len() >= 2
                         {
                             props.istd = u16::from_le_bytes([grpprl[0], grpprl[1]]);
-                            apply_pap_sprms(&grpprl[2..], &mut props);
+                            apply_pap_sprms(&grpprl[2..], data, &mut props);
                         }
                     }
                 }
@@ -385,10 +392,19 @@ fn apply_chp_sprms(grpprl: &[u8], props: &mut RunProps) {
     });
 }
 
-fn apply_pap_sprms(grpprl: &[u8], props: &mut RunProps) {
+fn apply_pap_sprms(grpprl: &[u8], data: &[u8], props: &mut RunProps) {
     walk_sprms(grpprl, |sprm, operand| match sprm {
         0x2416 => props.in_table = operand.first().is_some_and(|&v| v != 0),
         0x2417 => props.ttp = operand.first().is_some_and(|&v| v != 0),
+        // sprmPHugePapx: the real grpprl lives length-prefixed in the Data stream.
+        0x6646 => {
+            if let Some(off) = get_u32(operand, 0).map(|v| v as usize)
+                && let Some(cb) = get_u16(data, off).map(|v| v as usize)
+                && let Some(huge) = data.get(off + 2..off + 2 + cb)
+            {
+                apply_pap_sprms(huge, &[], props);
+            }
+        }
         0x2640 => {
             if let Some(&v) = operand.first()
                 && v < 9
