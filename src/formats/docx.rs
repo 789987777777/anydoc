@@ -14,7 +14,16 @@ use std::io::Cursor;
 struct Ctx {
     rels: HashMap<String, String>,
     numbering: HashMap<String, Vec<LevelDef>>,
-    heading_styles: HashMap<String, u8>,
+    styles: Styles,
+}
+
+#[derive(Default, Clone)]
+struct Styles {
+    headings: HashMap<String, u8>,
+    /// Resolved run formatting of character styles (w:rStyle).
+    character: HashMap<String, Style>,
+    /// Resolved run formatting of paragraph styles (w:pStyle).
+    paragraph: HashMap<String, Style>,
 }
 
 #[derive(Clone, Copy)]
@@ -27,7 +36,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes))?;
 
     let mut numbering = HashMap::new();
-    let mut heading_styles = HashMap::new();
+    let mut styles = Styles::default();
     if let Ok(s) = read_zip_string(&mut zip, "word/numbering.xml")
         && let Ok(tree) = parse_xml(&s)
     {
@@ -36,7 +45,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
     if let Ok(s) = read_zip_string(&mut zip, "word/styles.xml")
         && let Ok(tree) = parse_xml(&s)
     {
-        heading_styles = parse_styles(&tree);
+        styles = parse_styles(&tree);
     }
     let part_ctx = |zip: &mut zip::ZipArchive<Cursor<&[u8]>>, rels_name: &str| Ctx {
         rels: read_zip_string(zip, rels_name)
@@ -45,7 +54,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
             .map(|t| parse_rels(&t))
             .unwrap_or_default(),
         numbering: numbering.clone(),
-        heading_styles: heading_styles.clone(),
+        styles: styles.clone(),
     };
 
     let ctx = part_ctx(&mut zip, "word/_rels/document.xml.rels");
@@ -135,15 +144,18 @@ fn parse_numbering(tree: &Element) -> HashMap<String, Vec<LevelDef>> {
     out
 }
 
-fn parse_styles(tree: &Element) -> HashMap<String, u8> {
-    let mut map = HashMap::new();
+fn parse_styles(tree: &Element) -> Styles {
+    let mut styles = Styles::default();
     let Some(root) = tree.find("styles") else {
-        return map;
+        return styles;
     };
+    let mut raw: HashMap<&str, (&Element, Option<&str>)> = HashMap::new();
     for style in root.find_all("style") {
-        let Some(id) = style.attr("styleId") else {
-            continue;
-        };
+        if let Some(id) = style.attr("styleId") {
+            raw.insert(id, (style, style.find("basedOn").and_then(|e| e.attr("val"))));
+        }
+    }
+    for (id, (style, _)) in &raw {
         let name =
             style.find("name").and_then(|e| e.attr("val")).unwrap_or("").to_ascii_lowercase();
         let level = if let Some(rest) = name.strip_prefix("heading ") {
@@ -160,10 +172,37 @@ fn parse_styles(tree: &Element) -> HashMap<String, u8> {
                 .map(|l| l + 1)
         };
         if let Some(level) = level {
-            map.insert(id.to_string(), level);
+            styles.headings.insert(id.to_string(), level);
+        }
+        let resolved = resolve_run_style(id, &raw, 0);
+        if style.attr("type") == Some("character") {
+            styles.character.insert(id.to_string(), resolved);
+        } else {
+            styles.paragraph.insert(id.to_string(), resolved);
         }
     }
-    map
+    styles
+}
+
+fn resolve_run_style(
+    id: &str,
+    raw: &HashMap<&str, (&Element, Option<&str>)>,
+    depth: usize,
+) -> Style {
+    if depth > 8 {
+        return Style::PLAIN;
+    }
+    let Some((elem, based)) = raw.get(id) else {
+        return Style::PLAIN;
+    };
+    let mut style = match based {
+        Some(b) => resolve_run_style(b, raw, depth + 1),
+        None => Style::PLAIN,
+    };
+    if let Some(rpr) = elem.find("rPr") {
+        apply_rpr(rpr, &mut style);
+    }
+    style
 }
 
 enum ParaKind {
@@ -189,7 +228,7 @@ fn collect_blocks(
     for child in parent.child_elems() {
         match child.name.as_str() {
             "p" => {
-                let (kind, inlines) = parse_paragraph(child, ctx);
+                let (kind, inlines, boxes) = parse_paragraph(child, ctx);
                 match kind {
                     ParaKind::ListItem { ilvl, ordered, start } => {
                         list_run.push((ilvl, ordered, start, Block::Paragraph(inlines)));
@@ -203,6 +242,12 @@ fn collect_blocks(
                     ParaKind::Plain => {
                         flush_list(blocks, list_run);
                         blocks.push(Block::Paragraph(inlines));
+                    }
+                }
+                if !boxes.is_empty() {
+                    flush_list(blocks, list_run);
+                    for tb in boxes {
+                        blocks.extend(parse_blocks(tb, ctx));
                     }
                 }
             }
@@ -220,13 +265,13 @@ fn collect_blocks(
     }
 }
 
-fn parse_paragraph(p: &Element, ctx: &Ctx) -> (ParaKind, Vec<Inline>) {
+fn parse_paragraph<'a>(p: &'a Element, ctx: &'a Ctx) -> (ParaKind, Vec<Inline>, Vec<&'a Element>) {
     let mut kind = ParaKind::Plain;
     if let Some(ppr) = p.find("pPr") {
         let style_level = ppr
             .find("pStyle")
             .and_then(|e| e.attr("val"))
-            .and_then(|id| ctx.heading_styles.get(id).copied());
+            .and_then(|id| ctx.styles.headings.get(id).copied());
         let outline_level = ppr
             .find("outlineLvl")
             .and_then(|e| e.attr("val"))
@@ -252,10 +297,21 @@ fn parse_paragraph(p: &Element, ctx: &Ctx) -> (ParaKind, Vec<Inline>) {
             }
         }
     }
-    let mut walker = InlineWalker { ctx, out: Vec::new(), fields: Vec::new() };
+    let base = match kind {
+        ParaKind::Heading(_) => Style::PLAIN,
+        _ => p
+            .find("pPr")
+            .and_then(|ppr| ppr.find("pStyle"))
+            .and_then(|e| e.attr("val"))
+            .and_then(|id| ctx.styles.paragraph.get(id))
+            .copied()
+            .unwrap_or(Style::PLAIN),
+    };
+    let mut walker = InlineWalker::new(ctx, base);
     walker.walk(p);
+    let boxes = std::mem::take(&mut walker.boxes);
     let inlines = walker.finish();
-    (kind, inlines)
+    (kind, inlines, boxes)
 }
 
 struct FieldFrame {
@@ -266,11 +322,17 @@ struct FieldFrame {
 
 struct InlineWalker<'a> {
     ctx: &'a Ctx,
+    base: Style,
     out: Vec<Inline>,
     fields: Vec<FieldFrame>,
+    boxes: Vec<&'a Element>,
 }
 
 impl<'a> InlineWalker<'a> {
+    fn new(ctx: &'a Ctx, base: Style) -> Self {
+        InlineWalker { ctx, base, out: Vec::new(), fields: Vec::new(), boxes: Vec::new() }
+    }
+
     fn push(&mut self, inline: Inline) {
         match self.fields.last_mut() {
             Some(f) if f.in_result => f.inlines.push(inline),
@@ -279,7 +341,7 @@ impl<'a> InlineWalker<'a> {
         }
     }
 
-    fn walk(&mut self, elem: &Element) {
+    fn walk(&mut self, elem: &'a Element) {
         for child in elem.child_elems() {
             match child.name.as_str() {
                 "pPr" => {}
@@ -290,9 +352,9 @@ impl<'a> InlineWalker<'a> {
                         .and_then(|id| self.ctx.rels.get(id).cloned())
                         .or_else(|| child.attr("anchor").map(|a| format!("#{a}")))
                         .unwrap_or_default();
-                    let mut inner =
-                        InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
+                    let mut inner = InlineWalker::new(self.ctx, self.base);
                     inner.walk(child);
+                    self.boxes.append(&mut inner.boxes);
                     let content = inner.finish();
                     if !content.is_empty() {
                         self.push(Inline::Link { content, url });
@@ -300,9 +362,9 @@ impl<'a> InlineWalker<'a> {
                 }
                 "fldSimple" => {
                     let instr = child.attr("instr").unwrap_or("").to_string();
-                    let mut inner =
-                        InlineWalker { ctx: self.ctx, out: Vec::new(), fields: Vec::new() };
+                    let mut inner = InlineWalker::new(self.ctx, self.base);
                     inner.walk(child);
+                    self.boxes.append(&mut inner.boxes);
                     let content = inner.finish();
                     self.push_field_result(&instr, content);
                 }
@@ -317,10 +379,22 @@ impl<'a> InlineWalker<'a> {
         }
     }
 
-    fn walk_run(&mut self, run: &Element) {
-        let style = run.find("rPr").map(run_style).unwrap_or_default();
+    fn walk_run(&mut self, run: &'a Element) {
+        let style = match run.find("rPr") {
+            Some(rpr) => run_style(rpr, self.base, self.ctx),
+            None => self.base,
+        };
+        self.walk_run_content(run, style);
+    }
+
+    fn walk_run_content(&mut self, run: &'a Element, style: Style) {
         for child in run.child_elems() {
             match child.name.as_str() {
+                "AlternateContent" => {
+                    if let Some(alt) = child.find("Choice").or_else(|| child.find("Fallback")) {
+                        self.walk_run_content(alt, style);
+                    }
+                }
                 "t" => {
                     let text = clean_text(&child.text());
                     if !text.is_empty() {
@@ -344,19 +418,20 @@ impl<'a> InlineWalker<'a> {
                         self.push(Inline::NoteRef(format!("en{id}")));
                     }
                 }
-                "drawing" => {
-                    let doc_pr = child.descendants("docPr").into_iter().next();
-                    let descr = doc_pr.and_then(|d| d.attr("descr")).unwrap_or("");
-                    let name = doc_pr.and_then(|d| d.attr("name")).unwrap_or("");
-                    let alt = if !descr.trim().is_empty() {
-                        descr
-                    } else if !is_generic_image_name(name) {
-                        name
-                    } else {
-                        ""
-                    };
-                    if !alt.trim().is_empty() {
-                        self.push(Inline::Image { alt: clean_text(alt), url: None });
+                "drawing" | "pict" => {
+                    let before = self.boxes.len();
+                    collect_text_boxes(child, &mut self.boxes);
+                    if self.boxes.len() > before {
+                        continue;
+                    }
+                    let descr = child
+                        .descendants("docPr")
+                        .into_iter()
+                        .next()
+                        .and_then(|d| d.attr("descr"))
+                        .unwrap_or("");
+                    if !descr.trim().is_empty() {
+                        self.push(Inline::Image { alt: clean_text(descr), url: None });
                     }
                 }
                 "fldChar" => match child.attr("fldCharType") {
@@ -414,45 +489,49 @@ impl<'a> InlineWalker<'a> {
     }
 }
 
-/// Auto-generated names like "Picture 3" or "Graphic 1" carry no information.
-fn is_generic_image_name(name: &str) -> bool {
-    let mut words = name.split_whitespace();
-    let Some(first) = words.next() else {
-        return true;
-    };
-    let generic = matches!(
-        first.to_ascii_lowercase().as_str(),
-        "picture"
-            | "image"
-            | "graphic"
-            | "grafik"
-            | "bild"
-            | "imagen"
-            | "immagine"
-            | "obraz"
-            | "chart"
-            | "diagram"
-            | "shape"
-            | "textbox"
-            | "object"
-    );
-    generic && words.all(|w| w.chars().all(|c| c.is_ascii_digit()))
-}
-
-fn run_style(rpr: &Element) -> Style {
-    Style {
-        bold: on_off(rpr, "b"),
-        italic: on_off(rpr, "i"),
-        strike: on_off(rpr, "strike") || on_off(rpr, "dstrike"),
-        code: false,
+/// Find text-box content (`w:txbxContent`) in a drawing or VML pict, skipping
+/// `mc:Fallback` so AlternateContent shapes aren't collected twice.
+fn collect_text_boxes<'a>(elem: &'a Element, out: &mut Vec<&'a Element>) {
+    for child in elem.child_elems() {
+        if child.name == "Fallback" {
+            continue;
+        }
+        if child.name == "txbxContent" {
+            out.push(child);
+        } else {
+            collect_text_boxes(child, out);
+        }
     }
 }
 
-fn on_off(parent: &Element, name: &str) -> bool {
-    match parent.find(name) {
-        Some(e) => !matches!(e.attr("val"), Some("false") | Some("0") | Some("none")),
-        None => false,
+fn run_style(rpr: &Element, base: Style, ctx: &Ctx) -> Style {
+    let mut style = base;
+    if let Some(cs) =
+        rpr.find("rStyle").and_then(|e| e.attr("val")).and_then(|id| ctx.styles.character.get(id))
+    {
+        style.bold |= cs.bold;
+        style.italic |= cs.italic;
+        style.strike |= cs.strike;
     }
+    apply_rpr(rpr, &mut style);
+    style
+}
+
+fn apply_rpr(rpr: &Element, style: &mut Style) {
+    if let Some(v) = on_off(rpr, "b") {
+        style.bold = v;
+    }
+    if let Some(v) = on_off(rpr, "i") {
+        style.italic = v;
+    }
+    let (s, d) = (on_off(rpr, "strike"), on_off(rpr, "dstrike"));
+    if s.is_some() || d.is_some() {
+        style.strike = s.unwrap_or(false) || d.unwrap_or(false);
+    }
+}
+
+fn on_off(parent: &Element, name: &str) -> Option<bool> {
+    parent.find(name).map(|e| !matches!(e.attr("val"), Some("false") | Some("0") | Some("none")))
 }
 
 fn parse_table(tbl: &Element, ctx: &Ctx) -> Vec<Block> {
