@@ -1,5 +1,6 @@
-//! Minimal DOM built on quick-xml. Element and attribute names are stored
-//! without their namespace prefix.
+//! Minimal DOM built on quick-xml. Element names are stored without their
+//! namespace prefix; attributes keep it, and lookup matches the qualified
+//! name or its local part.
 
 use anyhow::Result;
 use quick_xml::Reader;
@@ -20,7 +21,12 @@ pub struct Element {
 
 impl Element {
     pub fn attr(&self, name: &str) -> Option<&str> {
-        self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+        self.attrs
+            .iter()
+            .find(|(k, _)| {
+                k == name || k.rsplit_once(':').is_some_and(|(_, local)| local == name)
+            })
+            .map(|(_, v)| v.as_str())
     }
 
     pub fn child_elems(&self) -> impl Iterator<Item = &Element> {
@@ -92,7 +98,7 @@ fn local_name(qname: &[u8]) -> String {
 fn start_to_element(e: &BytesStart, reader: &Reader<&[u8]>) -> Element {
     let mut attrs = Vec::new();
     for attr in e.attributes().flatten() {
-        let key = local_name(attr.key.as_ref());
+        let key = String::from_utf8_lossy(attr.key.as_ref()).into_owned();
         let value = attr
             .decoded_and_normalized_value(quick_xml::XmlVersion::Implicit1_0, reader.decoder())
             .map(|v| v.into_owned())
