@@ -62,6 +62,9 @@ fn parse_spreadsheet(sheet: &Element, ctx: &mut Ctx) -> Vec<Block> {
 fn parse_presentation(pres: &Element, ctx: &mut Ctx) -> Vec<Block> {
     let mut blocks = Vec::new();
     for page in pres.find_all("page") {
+        // The title frame is the slide's heading no matter where it sits.
+        let mut title = Vec::new();
+        let mut body = Vec::new();
         for child in page.child_elems() {
             match child.name.as_str() {
                 "frame" => {
@@ -79,17 +82,19 @@ fn parse_presentation(pres: &Element, ctx: &mut Ctx) -> Vec<Block> {
                         }
                     }
                     if class == "title" {
-                        push_title_heading(inner, &mut blocks);
+                        push_title_heading(inner, &mut title);
                     } else {
-                        blocks.extend(inner);
+                        body.extend(inner);
                     }
                 }
                 // Text sits directly on shapes outside frames.
                 "custom-shape" | "rect" | "ellipse" | "polygon" | "path" | "line"
-                | "connector" | "caption" => blocks.extend(parse_container(child, ctx)),
+                | "connector" | "caption" => body.extend(parse_container(child, ctx)),
                 _ => {}
             }
         }
+        blocks.append(&mut title);
+        blocks.append(&mut body);
     }
     blocks
 }

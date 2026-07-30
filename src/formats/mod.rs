@@ -5,6 +5,7 @@ mod doc;
 mod docx;
 mod epub;
 mod odf;
+mod pptx;
 mod rtf;
 mod sheet;
 
@@ -17,6 +18,7 @@ pub fn parse(bytes: &[u8], format: Format) -> Result<Document> {
         Format::Doc => doc::parse(bytes),
         Format::Docx => docx::parse(bytes),
         Format::Odt => odf::parse(bytes),
+        Format::Pptx => pptx::parse(bytes),
         Format::Rtf => rtf::parse(bytes),
         Format::Epub => epub::parse(bytes),
         Format::Ods | Format::Odp => odf::parse(bytes),
