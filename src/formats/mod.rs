@@ -19,7 +19,7 @@ pub fn parse(bytes: &[u8], format: Format) -> Result<Document> {
         Format::Odt => odf::parse(bytes),
         Format::Rtf => rtf::parse(bytes),
         Format::Epub => epub::parse(bytes),
-        Format::Ods => odf::parse(bytes),
+        Format::Ods | Format::Odp => odf::parse(bytes),
         Format::Excel => sheet::parse(bytes),
         Format::Csv => csv::parse(bytes),
     }

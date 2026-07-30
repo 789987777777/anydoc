@@ -1,4 +1,4 @@
-//! OpenDocument Text (.odt) and Spreadsheet (.ods).
+//! OpenDocument Text (.odt), Spreadsheet (.ods), and Presentation (.odp).
 //! Spreadsheet cells keep their display text, so number formats are as rendered.
 
 use crate::ir::*;
@@ -40,8 +40,10 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
         parse_container(text, &mut ctx)
     } else if let Some(sheet) = body.find("spreadsheet") {
         parse_spreadsheet(sheet, &mut ctx)
+    } else if let Some(pres) = body.find("presentation") {
+        parse_presentation(pres, &mut ctx)
     } else {
-        anyhow::bail!("content.xml has no office:text or office:spreadsheet body");
+        anyhow::bail!("content.xml has no recognized office body");
     };
     Ok(Document { blocks, notes: ctx.notes })
 }
@@ -55,6 +57,59 @@ fn parse_spreadsheet(sheet: &Element, ctx: &mut Ctx) -> Vec<Block> {
         push_sheet(&mut blocks, multi_sheet, name, parse_table(table, ctx));
     }
     blocks
+}
+
+fn parse_presentation(pres: &Element, ctx: &mut Ctx) -> Vec<Block> {
+    let mut blocks = Vec::new();
+    for page in pres.find_all("page") {
+        for child in page.child_elems() {
+            match child.name.as_str() {
+                "frame" => {
+                    let class = child.attr("class").unwrap_or("");
+                    if matches!(class, "notes" | "page-number" | "date-time" | "footer" | "header")
+                    {
+                        continue;
+                    }
+                    let mut inner = Vec::new();
+                    for content in child.child_elems() {
+                        match content.name.as_str() {
+                            "text-box" => inner.extend(parse_container(content, ctx)),
+                            "table" => inner.extend(parse_table(content, ctx)),
+                            _ => {}
+                        }
+                    }
+                    if class == "title" {
+                        push_title_heading(inner, &mut blocks);
+                    } else {
+                        blocks.extend(inner);
+                    }
+                }
+                // Text sits directly on shapes outside frames.
+                "custom-shape" | "rect" | "ellipse" | "polygon" | "path" | "line"
+                | "connector" | "caption" => blocks.extend(parse_container(child, ctx)),
+                _ => {}
+            }
+        }
+    }
+    blocks
+}
+
+/// Collapse a title frame's paragraphs into one slide heading.
+fn push_title_heading(inner: Vec<Block>, blocks: &mut Vec<Block>) {
+    let mut inlines: Vec<Inline> = Vec::new();
+    for block in inner {
+        let Block::Paragraph(para) = block else { continue };
+        if inlines_are_empty(&para) {
+            continue;
+        }
+        if !inlines.is_empty() {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(para);
+    }
+    if !inlines_are_empty(&inlines) {
+        blocks.push(Block::Heading { level: 2, content: inlines });
+    }
 }
 
 fn collect_styles(tree: &Element, ctx: &mut Ctx) {

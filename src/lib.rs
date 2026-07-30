@@ -22,6 +22,7 @@ pub enum Format {
     Epub,
     Excel,
     Ods,
+    Odp,
     Csv,
 }
 
@@ -35,6 +36,7 @@ impl Format {
             "epub" => Format::Epub,
             "xlsx" | "xlsm" | "xlsb" | "xls" => Format::Excel,
             "ods" => Format::Ods,
+            "odp" => Format::Odp,
             "csv" => Format::Csv,
             _ => return None,
         })
