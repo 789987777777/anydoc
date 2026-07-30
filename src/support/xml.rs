@@ -23,9 +23,7 @@ impl Element {
     pub fn attr(&self, name: &str) -> Option<&str> {
         self.attrs
             .iter()
-            .find(|(k, _)| {
-                k == name || k.rsplit_once(':').is_some_and(|(_, local)| local == name)
-            })
+            .find(|(k, _)| k == name || k.rsplit_once(':').is_some_and(|(_, local)| local == name))
             .map(|(_, v)| v.as_str())
     }
 

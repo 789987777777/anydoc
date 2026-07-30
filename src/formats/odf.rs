@@ -88,8 +88,8 @@ fn parse_presentation(pres: &Element, ctx: &mut Ctx) -> Vec<Block> {
                     }
                 }
                 // Text sits directly on shapes outside frames.
-                "custom-shape" | "rect" | "ellipse" | "polygon" | "path" | "line"
-                | "connector" | "caption" => body.extend(parse_container(child, ctx)),
+                "custom-shape" | "rect" | "ellipse" | "polygon" | "path" | "line" | "connector"
+                | "caption" => body.extend(parse_container(child, ctx)),
                 _ => {}
             }
         }

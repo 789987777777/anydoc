@@ -32,10 +32,8 @@ pub fn parse(bytes: &[u8]) -> Result<Document> {
             continue;
         };
         let Ok(tree) = parse_xml(&xml) else { continue };
-        let Some(sp_tree) = tree
-            .find("sld")
-            .and_then(|s| s.find("cSld"))
-            .and_then(|c| c.find("spTree"))
+        let Some(sp_tree) =
+            tree.find("sld").and_then(|s| s.find("cSld")).and_then(|c| c.find("spTree"))
         else {
             continue;
         };
@@ -164,9 +162,7 @@ fn parse_para_inlines(p: &Element, rels: &Rels) -> Vec<Inline> {
                     .and_then(|h| h.attr("r:id"))
                     .and_then(|rid| rels.get(rid));
                 match url {
-                    Some(url) => {
-                        out.push(Inline::Link { content: vec![inline], url: url.clone() })
-                    }
+                    Some(url) => out.push(Inline::Link { content: vec![inline], url: url.clone() }),
                     None => out.push(inline),
                 }
             }

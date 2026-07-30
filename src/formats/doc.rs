@@ -3,8 +3,8 @@
 
 use crate::ir::*;
 use crate::support::fields::{FieldFrame, field_result};
-use crate::support::ole::read_stream;
 use crate::support::list::{ListEntry, flush_list};
+use crate::support::ole::read_stream;
 use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 use std::io::Cursor;
