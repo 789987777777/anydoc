@@ -19,7 +19,7 @@ BENCH = Path(__file__).resolve().parent
 ROOT = BENCH.parent
 OUT = BENCH / "out"
 
-ALL_FORMATS = {"doc", "docx", "docm", "odt", "rtf", "epub", "xls", "xlsx", "xlsm", "xlsb", "ods", "csv"}
+ALL_FORMATS = {"doc", "docx", "docm", "odt", "rtf", "epub", "xls", "xlsx", "xlsm", "xlsb", "ods", "csv", "ppt", "pptx", "odp"}
 
 
 def ext(path: Path) -> str:

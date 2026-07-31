@@ -1,30 +1,37 @@
-//! One frontend per input format; each parses bytes into the shared IR.
+//! One frontend per input format; each parses bytes into the document model.
 
 mod csv;
 mod doc;
 mod docx;
 mod epub;
 mod odf;
+pub mod pdf;
 mod ppt;
 mod pptx;
 mod rtf;
 mod sheet;
 
 use crate::Format;
-use crate::ir::Document;
-use anyhow::Result;
+use crate::error::ConvertError;
+use crate::model::Document;
 
-pub fn parse(bytes: &[u8], format: Format) -> Result<Document> {
+pub fn parse(bytes: &[u8], format: Format) -> Result<Document, ConvertError> {
     match format {
-        Format::Doc => doc::parse(bytes),
-        Format::Docx => docx::parse(bytes),
-        Format::Odt => odf::parse(bytes),
-        Format::Ppt => ppt::parse(bytes),
-        Format::Pptx => pptx::parse(bytes),
-        Format::Rtf => rtf::parse(bytes),
-        Format::Epub => epub::parse(bytes),
-        Format::Ods | Format::Odp => odf::parse(bytes),
         Format::Excel => sheet::parse(bytes),
         Format::Csv => csv::parse(bytes),
+        Format::Docx => docx::parse(bytes),
+        Format::Odt | Format::Ods | Format::Odp => odf::parse(bytes),
+        Format::Pptx => pptx::parse(bytes),
+        Format::Epub => epub::parse(bytes),
+        Format::Rtf => rtf::parse(bytes),
+        // RTF files wearing a .doc extension are common in the wild.
+        Format::Doc if bytes.starts_with(b"{\\rtf") => rtf::parse(bytes),
+        Format::Doc => doc::parse(bytes),
+        Format::Ppt => ppt::parse(bytes),
+        // pdf-inspector produces Markdown directly; there is no document
+        // model for PDFs. `to_markdown_bytes` routes them to `pdf`.
+        Format::Pdf => Err(ConvertError::Unsupported(
+            "PDF converts directly to Markdown; use to_markdown or to_markdown_bytes".to_string(),
+        )),
     }
 }

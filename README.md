@@ -2,7 +2,7 @@
 
 Convert documents to GitHub-Flavored Markdown. A [Firecrawl](https://firecrawl.dev) project.
 
-anydoc parses each format into a shared intermediate representation and serializes it with a single GFM writer, so escaping, table fallbacks, emphasis merging, and footnote numbering behave identically across every input format.
+anydoc parses each format through an explicit resolution pipeline — package parts, then style/numbering/reference resolution, then a shared document model — and serializes with a single GFM writer, so escaping, table fallbacks, emphasis merging, anchors, and footnote numbering behave identically across every input format.
 
 ## Supported formats
 
@@ -20,8 +20,9 @@ anydoc parses each format into a shared intermediate representation and serializ
 | PowerPoint (legacy binary) | `.ppt`, `.pps`, `.pot` |
 | OpenDocument Presentation | `.odp` |
 | CSV | `.csv` |
+| PDF | `.pdf` |
 
-PDFs are out of scope; see [pdf-inspector](https://github.com/firecrawl/pdf-inspector).
+PDFs are converted with [pdf-inspector](https://github.com/firecrawl/pdf-inspector), which emits Markdown directly — they bypass the document model, so `to_document` is unsupported for them. Scanned and image-only PDFs need OCR, which is out of scope: they error as unsupported.
 
 ## Usage
 
@@ -32,7 +33,7 @@ let markdown = anydoc::to_markdown("report.docx")?;
 // From bytes:
 let markdown = anydoc::to_markdown_bytes(&bytes, anydoc::Format::Docx)?;
 
-// Or stop at the intermediate representation:
+// Or stop at the document model (which also carries embedded assets):
 let document = anydoc::to_document(&bytes, anydoc::Format::Rtf)?;
 ```
 
@@ -42,30 +43,42 @@ A small CLI for manual testing and benchmarking ships as an example:
 cargo run --release --example convert -- file.docx [-o out.md] [--bench N]
 ```
 
-## Output
+## Conversion behavior
 
-- Headings (from styles and outline levels), paragraphs, hard line breaks
-- Bold, italic, strikethrough, inline code, with split runs merged and edge whitespace normalized
-- Nested ordered/unordered lists, including numbering definitions in OOXML and ODF
-- GFM tables, with merged cells padded, multi-paragraph cells joined with `<br>`, and single-cell layout tables unwrapped
-- Hyperlinks, including `HYPERLINK` field codes in doc/docx/rtf
-- Footnotes and endnotes as GFM footnotes (`[^1]` / `[^1]: ...`)
-- Spreadsheets as one table per sheet with number formats applied (dates render as dates, not serials)
-- Presentations in slide order with title placeholders as headings; speaker notes, masters, and slide numbers are dropped
-- Markdown syntax in source text is escaped, including line-start constructs like `1.` and `-`
+There is exactly one conversion behavior — no options or modes:
+
+- **Missing optional parts are ignored.** A document without a stylesheet still converts.
+- **Recoverable producer quirks are recovered automatically** (unclosed XML, unbalanced RTF groups, stray covered table cells).
+- **Corrupt or unsupported subparts are skipped** when useful output can still be produced (an unreadable sheet, chapter, or slide is dropped; the rest converts).
+- **`ConvertError` is returned only when meaningful conversion is impossible**, the document is encrypted, or a fixed safety limit is exceeded (`Unsupported`, `Malformed`, `Encrypted`, `ResourceLimit`, `MissingPart`, `Io`).
+
+Recovery and skipped-content events are reported through the [`log`](https://docs.rs/log) facade at debug/warn level. Logging never changes conversion behavior and its messages are not a stable API.
+
+### Fixed resource limits
+
+Attack-shaped input (decompression bombs, pathological XML nesting, style-reference cycles, runaway repeat expansion, oversized embedded assets) hard-fails with `ResourceLimit`/`Malformed` — always. The caps are fixed, documented constants in the source (`package::limits`), not configuration.
+
+### Fixed content policy
+
+- Page headers and footers are excluded; speaker notes are included (rendered as a quote after each slide).
+- Slides and shapes convert in document (z-)order.
+- Spreadsheet and CSV data is never promoted to a table header; the GFM header row is left empty unless the format marks real header rows.
+- Internal links work end-to-end: bookmarks and EPUB chapter fragments become heading slugs or `<a id>` anchors in the output.
+- Embedded images and objects are retained as bytes in `Document::assets`; the Markdown output renders their alt text (Markdown cannot embed bytes). Charts and SmartArt render their textual content (titles, series data, diagram text).
 
 ## Layout
 
 ```
 src/
-  lib.rs        public API (Format, to_markdown, to_markdown_bytes, to_document)
-  ir.rs         format-neutral document tree
-  markdown.rs   the single IR -> GFM serializer
-  formats/      one frontend per input format
-  support/      shared infrastructure (XML DOM, HTML converter, text cleanup, field codes)
+  lib.rs          public API (Format, to_markdown, to_markdown_bytes, to_document)
+  model/          the document model: blocks, inlines, canonical table grid, assets, anchors
+  render/markdown the single model -> GFM serializer
+  package/        shared package layer: limited zip access, namespace-aware XML, OPC rels/paths
+  shared/         cross-format resolution: style deltas/chains, list identity, fields, HTML
+  formats/        one frontend per input format (docx, odf, pptx, epub, rtf, doc, ppt, sheet, csv, pdf)
 ```
 
-The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB, piece table, CHPX/PAPX formatting runs, stylesheet, footnote/endnote subdocuments), and `.ppt` likewise (record stream, persist directory, slide list). Excel formats use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine); ODS is parsed natively so cells keep their formatted display text.
+The `.doc` frontend is a from-scratch Word 97 binary parser implementing the published resolution algorithms (OLE2 container, FIB, piece table with property modifiers, CHPX/PAPX runs over STSH style chains, PlfLst/PlfLfo list tables, footnote/endnote subdocuments with UTF-16 CP accounting), and `.ppt` likewise (record stream, persist directory, style/master text atoms, with raw scanning only as a logged recovery path). Excel formats use Firecrawl's [calamine fork](https://github.com/firecrawl/calamine); ODS is parsed natively so cells keep their formatted display text.
 
 ## Development
 
@@ -73,7 +86,11 @@ The `.doc` frontend is a from-scratch Word 97 binary parser (OLE2 container, FIB
 cargo test
 ```
 
-Serializer behavior (escaping, emphasis, tables, footnotes) is covered by unit tests in `src/markdown.rs`. A local corpus of real-world documents in `samples/` (not committed) is used for regression and benchmark runs via the `convert` example. A speed and quality benchmark against other converters lives in [`bench/`](bench/README.md).
+- Serializer behavior (escaping, emphasis, tables, anchors, footnotes) is covered by unit tests in `src/render/markdown/tests.rs`.
+- A committed fixture corpus (`tests/fixtures/`, generated from authored sources by `tests/gen_fixtures.py` through LibreOffice/Pandoc plus handmade edge cases) is snapshot-tested by `tests/snapshots.rs`; malformed fixtures encode their expected outcome in the filename (`--recovers`, `--skips`, `--errors`).
+- A local corpus of real-world documents in `samples/` (not committed) is swept by `cargo test --test snapshots -- --ignored`.
+- `tests/robustness.rs` mutation-tests every fixture; `fuzz/` carries cargo-fuzz targets per format.
+- A speed and quality benchmark against other converters lives in [`bench/`](bench/README.md).
 
 ## License
 
