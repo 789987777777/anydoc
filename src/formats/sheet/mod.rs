@@ -115,35 +115,31 @@ pub fn parse(bytes: &[u8]) -> Result<Document, ConvertError> {
 }
 
 /// Merged regions per sheet, where the container format exposes them (xlsx
-/// via the loaded region list, xls via BIFF MERGEDCELLS).
+/// via each worksheet's mergeCells part, xls via BIFF MERGEDCELLS).
 fn merged_regions<RS: std::io::Read + std::io::Seek>(
     workbook: &mut Sheets<RS>,
     sheet_names: &[String],
 ) -> Result<HashMap<String, Vec<Dimensions>>, ConvertError> {
     let mut out: HashMap<String, Vec<Dimensions>> = HashMap::new();
-    match workbook {
-        Sheets::Xlsx(x) => {
-            if let Err(e) = contained("merged-region load", || x.load_merged_regions())? {
-                log::warn!("skipping unreadable merged-region list: {e}");
-                return Ok(out);
+    for name in sheet_names {
+        let regions = match workbook {
+            Sheets::Xlsx(x) => {
+                contained("merged-region listing", || x.merge_cells_by_sheet_name(name))?
+                    .map_err(|e| e.to_string())
             }
-            let regions: Vec<(String, Dimensions)> = contained("merged-region listing", || {
-                x.merged_regions().iter().map(|(sheet, _, dims)| (sheet.clone(), *dims)).collect()
-            })?;
-            for (sheet, dims) in regions {
-                out.entry(sheet).or_default().push(dims);
+            Sheets::Xls(x) => {
+                contained("merged-cell listing", || x.merge_cells_by_sheet_name(name))?
+                    .map_err(|e| e.to_string())
             }
+            _ => continue,
+        };
+        match regions {
+            Ok(dims) if !dims.is_empty() => {
+                out.insert(name.clone(), dims);
+            }
+            Ok(_) => {}
+            Err(e) => log::warn!("skipping unreadable merged-region list for {name:?}: {e}"),
         }
-        Sheets::Xls(x) => {
-            for name in sheet_names {
-                if let Some(dims) =
-                    contained("merged-cell listing", || x.worksheet_merge_cells(name))?
-                {
-                    out.insert(name.clone(), dims);
-                }
-            }
-        }
-        _ => {}
     }
     Ok(out)
 }

@@ -75,6 +75,44 @@ fn corpus() {
 /// error. (Baseline recording ran with this off; it is enforced from P1 on.)
 const STRICT_ANNOTATIONS: bool = true;
 
+/// Every well-formed corpus fixture must be identified from its bytes
+/// alone. Only the signature-less text formats (csv) legitimately need the
+/// extension fallback.
+#[test]
+fn fixtures_detect_from_content() {
+    use anydoc::Format;
+    let expected = [
+        ("doc", Some(Format::Doc)),
+        ("docx", Some(Format::Docx)),
+        ("epub", Some(Format::Epub)),
+        ("odp", Some(Format::Odp)),
+        ("ods", Some(Format::Ods)),
+        ("odt", Some(Format::Odt)),
+        ("pdf", Some(Format::Pdf)),
+        ("ppt", Some(Format::Ppt)),
+        ("pptx", Some(Format::Pptx)),
+        ("rtf", Some(Format::Rtf)),
+        ("xls", Some(Format::Excel)),
+        ("xlsx", Some(Format::Excel)),
+        ("csv", None),
+    ];
+    let root = fixture_root();
+    for (dir, format) in expected {
+        let mut files = Vec::new();
+        walk(&root.join(dir), &mut files);
+        assert!(!files.is_empty(), "no fixtures under {dir}/");
+        for path in files {
+            let bytes = std::fs::read(&path).unwrap();
+            assert_eq!(
+                Format::from_bytes(&bytes),
+                format,
+                "detection mismatch for {}",
+                path.display()
+            );
+        }
+    }
+}
+
 /// Embedded object payloads land in `Document::assets` with their identity
 /// and media type (the Markdown output shows only the alt text).
 #[test]

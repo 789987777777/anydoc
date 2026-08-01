@@ -29,7 +29,8 @@ use render::markdown::document_to_markdown;
 use std::path::Path;
 
 /// Input format. Selects the parser; container variants that share a parser
-/// (docm, xlsm, ...) map onto these via [`Format::from_extension`].
+/// (docm, xlsm, ...) map onto these via [`Format::from_bytes`] or
+/// [`Format::from_extension`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
     Doc,
@@ -52,6 +53,15 @@ pub enum Format {
 }
 
 impl Format {
+    /// Detect the format from the content itself: the signature and identity
+    /// each container specification designates (PDF header, RTF open group,
+    /// OLE stream names, ZIP package mimetype/content types). Plain-text
+    /// formats (CSV) carry no signature and return `None`; so does anything
+    /// unrecognized.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Format> {
+        formats::detect::from_bytes(bytes)
+    }
+
     pub fn from_extension(ext: &str) -> Option<Format> {
         Some(match ext.to_ascii_lowercase().as_str() {
             "doc" => Format::Doc,
@@ -75,16 +85,18 @@ impl Format {
     }
 }
 
-/// Convert a document file to Markdown, inferring the format from its extension.
+/// Convert a document file to Markdown. The format is detected from the
+/// file content ([`Format::from_bytes`]); the extension is the fallback for
+/// signature-less formats (CSV) and unrecognizable containers.
 pub fn to_markdown(path: impl AsRef<Path>) -> Result<String, ConvertError> {
     let path = path.as_ref();
-    let Some(format) = Format::from_path(path) else {
+    let bytes = std::fs::read(path)?;
+    let Some(format) = Format::from_bytes(&bytes).or_else(|| Format::from_path(path)) else {
         return Err(ConvertError::Unsupported(format!(
-            "unrecognized file extension: {}",
+            "unrecognized file content and extension: {}",
             path.display()
         )));
     };
-    let bytes = std::fs::read(path)?;
     to_markdown_bytes(&bytes, format)
 }
 

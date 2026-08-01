@@ -1,20 +1,29 @@
 //! Shared text normalization.
 
 /// Drop control characters and layout-only invisibles, convert NBSP to a
-/// regular space, strip soft hyphens. U+200C (ZWNJ) and U+200D (ZWJ) are
-/// **preserved**: they carry meaning in Arabic/Indic shaping and emoji
-/// sequences.
+/// regular space, strip soft hyphens. Line breaks become single spaces; a
+/// CRLF pair is one break. U+200C (ZWNJ) and U+200D (ZWJ) are **preserved**:
+/// they carry meaning in Arabic/Indic shaping and emoji sequences.
 pub fn clean_text(text: &str) -> String {
-    text.chars()
-        .filter_map(|c| match c {
-            '\u{a0}' => Some(' '),
-            '\u{ad}' | '\u{200b}' | '\u{feff}' => None,
-            '\t' => Some('\t'),
-            '\n' | '\r' => Some(' '),
-            c if c.is_control() => None,
-            c => Some(c),
-        })
-        .collect()
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{a0}' => out.push(' '),
+            '\u{ad}' | '\u{200b}' | '\u{feff}' => {}
+            '\t' => out.push('\t'),
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                out.push(' ');
+            }
+            '\n' => out.push(' '),
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// Collapse whitespace runs to single spaces.

@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "anydoc"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "calamine",
  "cfb",
@@ -110,18 +110,19 @@ dependencies = [
  "insta",
  "log",
  "pdf-inspector",
- "quick-xml 0.41.0",
+ "quick-xml",
  "sha2 0.10.9",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
 name = "atoi_simd"
-version = "0.17.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ad17c7c205c2c28b527b9845eeb91cf1b4d008b438f98ce0e628227a822758e"
+checksum = "f3cdb3708a128e559a30fb830e8a77a5022ee6902806925c216658652b452a44"
 dependencies = [
  "debug_unsafe",
+ "rustversion",
 ]
 
 [[package]]
@@ -193,8 +194,9 @@ dependencies = [
 
 [[package]]
 name = "calamine"
-version = "0.34.0"
-source = "git+https://github.com/firecrawl/calamine?branch=fc-prod#47ad71f8184f6ee38c637dc49d8950ef7fdc2d1b"
+version = "0.36.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fa68281b1a76b54a62156474adb06bb380a67e07dd60656e3217152b42183f3"
 dependencies = [
  "atoi_simd",
  "byteorder",
@@ -203,9 +205,9 @@ dependencies = [
  "encoding_rs",
  "fast-float2",
  "log",
- "quick-xml 0.39.4",
+ "quick-xml",
  "serde",
- "zip 7.2.0",
+ "zip",
 ]
 
 [[package]]
@@ -1002,8 +1004,9 @@ dependencies = [
 
 [[package]]
 name = "pdf-inspector"
-version = "0.1.6"
-source = "git+https://github.com/firecrawl/pdf-inspector?branch=fix%2Fgid-differences-tounicode#13409859c9cabec7ca2f85398c4dda4fc4d0abc5"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7475018de0880b394b7cc50f871fac0c010aa411dcd14c64074a3e640a4c05c"
 dependencies = [
  "env_logger",
  "include_dir",
@@ -1067,20 +1070,11 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.39.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e"
-dependencies = [
- "encoding_rs",
- "memchr",
-]
-
-[[package]]
-name = "quick-xml"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
 dependencies = [
+ "encoding_rs",
  "memchr",
 ]
 
@@ -1595,20 +1589,6 @@ name = "zeroize"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
-
-[[package]]
-name = "zip"
-version = "7.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c42e33efc22a0650c311c2ef19115ce232583abbe80850bc8b66509ebef02de0"
-dependencies = [
- "crc32fast",
- "flate2",
- "indexmap",
- "memchr",
- "typed-path",
- "zopfli",
-]
 
 [[package]]
 name = "zip"
