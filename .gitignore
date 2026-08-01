@@ -2,3 +2,4 @@
 /samples
 *.snap.new
 __pycache__/
+.venv/
