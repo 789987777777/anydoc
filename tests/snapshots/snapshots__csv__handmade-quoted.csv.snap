@@ -5,5 +5,5 @@ expression: output
 |  |  |  |
 | --- | --- | --- |
 | name | desc | qty |
-| &#32;&#32;padded&#32;&#32; | comma, inside | 3 |
+| padded | comma, inside | 3 |
 | plain | multi line | 4 |

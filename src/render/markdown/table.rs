@@ -76,27 +76,15 @@ pub(crate) fn render_cell(cell: &Cell, rc: &Ctx) -> String {
     for block in &cell.blocks {
         cell_block_text(block, rc, &mut parts);
     }
+    // A cell's edge whitespace is padding the table's own padding would
+    // swallow anyway, and spreadsheets carry it by the thousand.
     parts
         .join("<br>")
         .lines()
         .filter(|l| !l.trim().is_empty())
-        .map(protect_edge_whitespace)
+        .map(str::trim)
         .collect::<Vec<_>>()
         .join("<br>")
-}
-
-/// Trim a cell line's edges, re-encoding source edge whitespace as numeric
-/// character references so the table's own cell padding cannot swallow it.
-fn protect_edge_whitespace(line: &str) -> String {
-    let start_trimmed = line.trim_start();
-    let body = start_trimmed.trim_end();
-    let lead: String = line[..line.len() - start_trimmed.len()].chars().map(entity).collect();
-    let trail: String = start_trimmed[body.len()..].chars().map(entity).collect();
-    format!("{lead}{body}{trail}")
-}
-
-fn entity(c: char) -> String {
-    format!("&#{};", c as u32)
 }
 
 fn cell_block_text(block: &Block, rc: &Ctx, parts: &mut Vec<String>) {
