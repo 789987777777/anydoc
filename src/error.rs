@@ -16,15 +16,28 @@ pub enum ConvertError {
     Unsupported(String),
     /// The document is structurally unusable - no meaningful content could be
     /// extracted. `part` names the package part or stream when known.
-    Malformed { part: Option<String>, detail: String },
+    Malformed {
+        /// Package part or stream the failure was found in, when known.
+        part: Option<String>,
+        /// What was wrong with it.
+        detail: String,
+    },
     /// The document is encrypted or password-protected.
     Encrypted,
     /// A fixed safety limit was exceeded (decompression, nesting depth, node
     /// count, repeat expansion, retained asset bytes). These are hard errors
     /// in every case; see `package::limits` for the documented defaults.
-    ResourceLimit { limit: &'static str, detail: String },
+    ResourceLimit {
+        /// Name of the limit that was hit.
+        limit: &'static str,
+        /// What exceeded it, and by how much where that is known.
+        detail: String,
+    },
     /// A part required for any meaningful output is missing.
-    MissingPart { part: String },
+    MissingPart {
+        /// The part or stream that was absent.
+        part: String,
+    },
     /// The input could not be read.
     Io(std::io::Error),
 }

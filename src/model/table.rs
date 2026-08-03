@@ -6,15 +6,19 @@ use std::collections::HashMap;
 /// Canonical table grid. **Invariant:** every logical grid position appears
 /// exactly once - content and spans exist only on the origin slot, and each
 /// position covered by a span holds a [`CellSlot::Covered`] marker pointing
-/// back at its origin. [`GridBuilder`] is the sole way to construct one.
+/// back at its origin. Frontends construct grids through one internal builder
+/// that enforces this, so a `Table` handed to a consumer always holds.
 #[derive(Debug, Clone, Default)]
 pub struct Table {
+    /// Rows of slots. Rows may differ in length when the source is ragged.
     pub grid: Vec<Vec<CellSlot>>,
     /// Number of leading rows that are header rows (0 = no header).
     pub header_rows: usize,
+    /// Whether the source used this table for data or for layout.
     pub kind: TableKind,
 }
 
+/// What a table is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TableKind {
     /// A real data table.
@@ -25,32 +29,52 @@ pub enum TableKind {
     Layout,
 }
 
+/// One position in a [`Table::grid`]: either a cell or the shadow of one.
 #[derive(Debug, Clone)]
 pub enum CellSlot {
+    /// The cell itself, holding the content and the span extents.
     Origin(Cell),
-    Covered { origin_row: usize, origin_col: usize },
+    /// A position swallowed by a span, pointing back at the origin that
+    /// covers it.
+    Covered {
+        /// Row of the covering origin.
+        origin_row: usize,
+        /// Column of the covering origin.
+        origin_col: usize,
+    },
 }
 
+/// A table cell and the extent it spans.
 #[derive(Debug, Clone, Default)]
 pub struct Cell {
+    /// The cell's content.
     pub blocks: Vec<Block>,
+    /// Columns covered, at least 1.
     pub col_span: u32,
+    /// Rows covered, at least 1.
     pub row_span: u32,
 }
 
 impl Cell {
+    /// A cell spanning one position.
     pub fn new(blocks: Vec<Block>) -> Self {
         Cell { blocks, col_span: 1, row_span: 1 }
     }
 
+    /// A one-paragraph cell spanning one position.
     pub fn from_inlines(inlines: Vec<Inline>) -> Self {
         Cell::new(vec![Block::Paragraph(inlines)])
     }
 
+    /// A cell covering `col_span` by `row_span` positions; either span given
+    /// as 0 is raised to 1.
     pub fn spanning(blocks: Vec<Block>, col_span: u32, row_span: u32) -> Self {
         Cell { blocks, col_span: col_span.max(1), row_span: row_span.max(1) }
     }
 
+    /// True when the cell holds nothing that would render: only paragraphs
+    /// count toward emptiness, so a cell with a table or list in it is not
+    /// empty even if that content is blank.
     pub fn is_empty(&self) -> bool {
         self.blocks.iter().all(|b| match b {
             Block::Paragraph(inlines) => inlines_are_empty(inlines),

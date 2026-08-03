@@ -4,6 +4,8 @@
 //! facade (debug/warn level); logging never changes conversion behavior and
 //! its messages are not a stable API.
 
+#![warn(missing_docs)]
+
 pub mod model;
 
 mod error;
@@ -23,8 +25,11 @@ use std::path::Path;
 /// [`Format::from_extension`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
+    /// Binary Word 97-2003 (`.doc`).
     Doc,
+    /// WordprocessingML (`.docx`, `.docm`), both Transitional and Strict.
     Docx,
+    /// OpenDocument Text (`.odt`).
     Odt,
     /// Converted with [pdf-inspector], which emits Markdown directly:
     /// [`to_document`] is unsupported for PDFs. Scanned/image-only PDFs
@@ -32,13 +37,23 @@ pub enum Format {
     ///
     /// [pdf-inspector]: https://github.com/firecrawl/pdf-inspector
     Pdf,
+    /// Binary PowerPoint 97-2003 (`.ppt`, `.pps`, `.pot`).
     Ppt,
+    /// PresentationML (`.pptx`, `.pptm`, `.ppsx`, `.ppsm`).
     Pptx,
+    /// Rich Text Format (`.rtf`).
     Rtf,
+    /// EPUB 2 and 3 (`.epub`).
     Epub,
+    /// Excel workbooks in every container calamine reads: `.xlsx`, `.xlsm`,
+    /// `.xlsb`, and binary `.xls`.
     Excel,
+    /// OpenDocument Spreadsheet (`.ods`).
     Ods,
+    /// OpenDocument Presentation (`.odp`).
     Odp,
+    /// Delimiter-separated text (`.csv`). Carries no signature, so it has to
+    /// be named rather than detected.
     Csv,
 }
 
@@ -52,6 +67,8 @@ impl Format {
         formats::detect::from_bytes(bytes)
     }
 
+    /// The format a bare extension names (no leading dot), matched
+    /// case-insensitively. `None` for anything unrecognized.
     pub fn from_extension(ext: &str) -> Option<Format> {
         Some(match ext.to_ascii_lowercase().as_str() {
             "doc" => Format::Doc,
@@ -70,6 +87,8 @@ impl Format {
         })
     }
 
+    /// The format a path's extension names. `None` when the path has no
+    /// extension or names nothing recognized.
     pub fn from_path(path: &Path) -> Option<Format> {
         path.extension().and_then(|e| e.to_str()).and_then(Format::from_extension)
     }

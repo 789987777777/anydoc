@@ -5,6 +5,7 @@ use crate::model::AssetId;
 /// unique across the whole document.
 pub type AnchorId = String;
 
+/// Where a link points.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkTarget {
     /// Absolute URL with a scheme.
@@ -16,6 +17,7 @@ pub enum LinkTarget {
 }
 
 impl LinkTarget {
+    /// True when the target string is empty, whichever kind it is.
     pub fn is_empty(&self) -> bool {
         match self {
             LinkTarget::External(s) | LinkTarget::Relative(s) | LinkTarget::Anchor(s) => {
@@ -25,6 +27,7 @@ impl LinkTarget {
     }
 }
 
+/// Where an image's bytes live.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImageSource {
     /// Absolute URL with a scheme.

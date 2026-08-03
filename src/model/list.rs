@@ -3,15 +3,22 @@ use crate::model::Block;
 /// The marker family a list level uses in the source document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarkerKind {
+    /// Unordered.
     Bullet,
+    /// `1`, `2`, `3`.
     Decimal,
+    /// `a`, `b`, `c`.
     LowerAlpha,
+    /// `A`, `B`, `C`.
     UpperAlpha,
+    /// `i`, `ii`, `iii`.
     LowerRoman,
+    /// `I`, `II`, `III`.
     UpperRoman,
 }
 
 impl MarkerKind {
+    /// True for every kind but [`MarkerKind::Bullet`].
     pub fn ordered(self) -> bool {
         !matches!(self, MarkerKind::Bullet)
     }
@@ -87,20 +94,29 @@ fn roman(mut n: u64) -> String {
 /// instance or marker kind changes.
 #[derive(Debug, Clone)]
 pub struct List {
+    /// The marker family every item in this run uses.
     pub marker: MarkerKind,
+    /// Ordinal of the first item, from the source's own numbering.
     pub start: u64,
+    /// The items, in order.
     pub items: Vec<ListItem>,
 }
 
 impl List {
+    /// True when this list's marker is a numbered one.
     pub fn ordered(&self) -> bool {
         self.marker.ordered()
     }
 }
 
+/// One item of a [`List`], which may hold nested blocks including further
+/// lists.
 #[derive(Debug, Clone, Default)]
 pub struct ListItem {
+    /// The item's content.
     pub blocks: Vec<Block>,
+    /// Checkbox state for a task list item; `None` when the item carries no
+    /// checkbox.
     pub checked: Option<bool>,
     /// Literal marker text that overrides the level marker when the source
     /// number text cannot be reproduced from `marker` + position alone
