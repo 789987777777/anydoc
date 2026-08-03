@@ -2,18 +2,18 @@
 
 Benchmarks anydoc against well-known document-to-markdown converters on the
 `samples/` corpus, for both speed and quality (deterministic metrics + LLM judge).
-Office/text documents only; PDFs and presentations are out of scope.
+Office, text, and presentation documents; PDFs are out of scope.
 
 ## Competitors
 
 | tool | formats benchmarked |
 | --- | --- |
-| markitdown (Microsoft, Python) | docx, xlsx, xls, epub, csv |
+| markitdown (Microsoft, Python) | docx, xlsx, xls, epub, csv, pptx |
 | pandoc (CLI) | docx, odt, rtf, epub, csv |
-| docling (IBM, Python) | docx, xlsx, csv |
-| unstructured (Python) | doc, docx, odt, rtf, epub, xls, xlsx, csv |
+| docling (IBM, Python) | docx, xlsx, csv, pptx |
+| unstructured (Python) | doc, docx, odt, rtf, epub, xls, xlsx, csv, ppt, pptx |
 | mammoth + turndown (Node) | docx |
-| LibreOffice headless → HTML → pandoc | doc, docx, docm, odt, rtf, xls, xlsx, xlsm, xlsb, ods |
+| LibreOffice headless → HTML → pandoc | doc, docx, docm, odt, rtf, xls, xlsx, xlsm, xlsb, ods, ppt, pptx, odp |
 
 Missing tools are skipped with a warning, so a partial setup still runs.
 

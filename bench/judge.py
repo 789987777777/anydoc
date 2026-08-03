@@ -44,7 +44,7 @@ load_dotenv()
 
 API = "https://api.anthropic.com/v1/messages/batches"
 MODEL = os.environ.get("JUDGE_MODEL", "claude-sonnet-5")
-MAX_TOKENS = 3000
+MAX_TOKENS = 8000
 MD_LIMIT = 40_000
 EPUB_TRUTH_LIMIT = 30_000
 
@@ -52,11 +52,17 @@ PROMPT = """You are judging two markdown conversions (A and B) of the same sourc
 
 {truth_note}
 
+The deliverable is GitHub-Flavored Markdown. Judge each output as Markdown:
+raw HTML is not Markdown structure and counts against cleanliness. Where the
+source uses something Markdown has no syntax for, there is no single right
+answer: weigh what each output does on its merits.
+
 Score each output 1-5 on:
-- completeness: all source content present, nothing invented
+- completeness: all source content present as markdown, nothing invented.
+  Content carried only inside raw HTML does not count as present.
 - structure: headings, lists, and tables match the document's actual structure
 - formatting: bold/italic/links/footnotes fidelity
-- cleanliness: no artifacts, garbage text, or broken markdown/escaping
+- cleanliness: no artifacts, garbage text, raw HTML, or broken markdown/escaping
 
 Then pick the overall winner. The outputs and ground truth may be truncated;
 judge only the content covered by the ground truth shown.

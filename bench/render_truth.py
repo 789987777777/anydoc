@@ -14,7 +14,8 @@ import fitz  # pymupdf
 
 from convert import BENCH, ROOT, decode, ext, find_soffice
 
-RENDERABLE = {"doc", "docx", "docm", "odt", "rtf", "xls", "xlsx", "xlsm", "xlsb", "ods"}
+RENDERABLE = {"doc", "docx", "docm", "odt", "rtf", "xls", "xlsx", "xlsm", "xlsb", "ods",
+              "ppt", "pptx", "odp"}
 
 
 def main():

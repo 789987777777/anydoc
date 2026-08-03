@@ -225,10 +225,11 @@ def convert_libreoffice(path: Path, iters: int):
 
 TOOLS = {
     "anydoc": (ALL_FORMATS, convert_anydoc),
-    "markitdown": ({"docx", "xlsx", "xls", "csv", "epub"}, convert_markitdown),
-    "docling": ({"docx", "xlsx", "csv"}, convert_docling),
+    "markitdown": ({"docx", "xlsx", "xls", "csv", "epub", "pptx"}, convert_markitdown),
+    "docling": ({"docx", "xlsx", "csv", "pptx"}, convert_docling),
     "pandoc": (set(PANDOC_FROM), convert_pandoc),
-    "unstructured": ({"doc", "docx", "odt", "rtf", "epub", "xls", "xlsx", "csv"}, convert_unstructured),
+    "unstructured": ({"doc", "docx", "odt", "rtf", "epub", "xls", "xlsx", "csv", "ppt", "pptx"},
+                     convert_unstructured),
     "mammoth": ({"docx"}, convert_mammoth),
     "libreoffice": (ALL_FORMATS - {"epub", "csv"}, convert_libreoffice),
 }
