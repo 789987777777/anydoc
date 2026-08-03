@@ -39,8 +39,6 @@ expression: output
 
 See [the marked span](#oebps-ch2-xhtml-target-span) in chapter two, or [an external page](https://example.com/x), or [a relative resource](notes.txt).
 
-<a id="oebps-ch2-xhtml"></a>
-
 # Second Chapter
 
 Leading text. <a id="oebps-ch2-xhtml-target-span"></a>This span is the anchor target.

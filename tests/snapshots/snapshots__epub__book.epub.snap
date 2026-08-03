@@ -4,13 +4,9 @@ expression: output
 ---
 # Fixture Book
 
-<a id="epub-text-title_page-xhtml"></a>
-
 # **Fixture Book**
 
 anydoc tests
-
-<a id="epub-text-ch001-xhtml"></a>
 
 <a id="epub-text-ch001-xhtml-chapter-one"></a>
 
@@ -31,8 +27,6 @@ A list of things:
 See [Chapter Two](#epub-text-ch002-xhtml-chapter-two) for the table, or jump straight to [the marked paragraph](#epub-text-ch002-xhtml-markpoint).
 
 tiny dot tiny dot
-
-<a id="epub-text-ch002-xhtml"></a>
 
 <a id="epub-text-ch002-xhtml-chapter-two"></a>
 

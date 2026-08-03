@@ -4,8 +4,6 @@ expression: output
 ---
 # Cascade Book
 
-<a id="oebps-ch1-xhtml"></a>
-
 # Sheet A Chapter
 
 **Bold via sheet A.**
@@ -20,13 +18,9 @@ See [the picture](pic.png), [the download](data.bin), [the non-linear appendix](
 
 ~~Struck via the chapter style block.~~
 
-<a id="oebps-ch3-xhtml"></a>
-
 # Cascade Chapter
 
 *Sheet B wins the conflict.*
-
-<a id="oebps-ch4-xhtml"></a>
 
 # Specificity Chapter
 

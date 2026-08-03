@@ -485,13 +485,14 @@ fn anchor_on_plain_paragraph_round_trips() {
 }
 
 #[test]
-fn unreferenced_anchor_still_renders() {
-    // Every source anchor renders, so outside consumers can link to it.
+fn unreferenced_anchor_renders_nothing() {
+    // An anchor no link targets is unreachable: producers mark up far more
+    // positions than they reference.
     let md = doc(vec![Block::Paragraph(vec![
         Inline::Anchor("standalone-mark".into()),
         Inline::plain("No link points here."),
     ])]);
-    assert_eq!(md, "<a id=\"standalone-mark\"></a>No link points here.\n");
+    assert_eq!(md, "No link points here.\n");
 }
 
 #[test]
@@ -531,10 +532,9 @@ fn code_block_in_cell_uses_code_span() {
 }
 
 #[test]
-fn cell_edge_whitespace_survives_as_entities() {
-    // S10: sources that retain cell padding (spreadsheets, CSV) must keep
-    // it in the final Markdown; the table's own padding would swallow raw
-    // edge spaces, so they render as numeric character references.
+fn cell_edge_whitespace_is_trimmed() {
+    // S10: cell padding from spreadsheets and CSV is layout, and the table's
+    // own padding would swallow it anyway.
     let md = doc(vec![table_from(
         vec![vec![
             Cell::from_inlines(vec![Inline::plain("  padded\t")]),
@@ -542,5 +542,5 @@ fn cell_edge_whitespace_survives_as_entities() {
         ]],
         0,
     )]);
-    assert_eq!(md, "|  |  |\n| --- | --- |\n| &#32;&#32;padded&#9; | plain |\n");
+    assert_eq!(md, "|  |  |\n| --- | --- |\n| padded | plain |\n");
 }

@@ -1,9 +1,13 @@
 //! Anchor resolution: maps every internal anchor id to the fragment it will
 //! have in the rendered Markdown. Heading-coincident anchors reuse the
-//! heading's GFM auto-generated slug; all other anchors get a sanitized,
-//! stable HTML id rendered as `<a id="..."></a>` at their position.
+//! heading's GFM auto-generated slug; an anchor a link targets gets a
+//! sanitized, stable HTML id rendered as `<a id="..."></a>` at its position.
+//!
+//! Anchors nothing links to render nothing: producers mark up far more
+//! positions than they reference (a bookmark per paragraph, an id per EPUB
+//! element), and an unreachable target is only noise in the output.
 
-use crate::model::{Block, Document, Inline, inlines_to_plain_text};
+use crate::model::{Block, Document, Inline, LinkTarget, inlines_to_plain_text};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) struct AnchorMap {
@@ -34,6 +38,13 @@ pub(crate) fn resolve_anchors(doc: &Document) -> AnchorMap {
     let mut used: HashSet<String> = HashSet::new();
     let mut resolved: HashMap<String, Resolved> = HashMap::new();
 
+    // Anchor ids some link in the document targets, notes included.
+    let mut linked: HashSet<&str> = HashSet::new();
+    walk_blocks(&doc.blocks, &mut |block| collect_link_targets(block, &mut linked));
+    for note in &doc.notes {
+        walk_blocks(&note.blocks, &mut |block| collect_link_targets(block, &mut linked));
+    }
+
     // Pass 1: headings claim their GFM slugs in render order, binding any
     // heading-coincident anchor ids (the `anchor` field and anchor nodes
     // inside the heading content) to those slugs.
@@ -52,10 +63,9 @@ pub(crate) fn resolve_anchors(doc: &Document) -> AnchorMap {
         }
     });
 
-    // Pass 2: every remaining anchor node gets a sanitized HTML id - all
-    // source anchors render, so outside consumers can link to them.
+    // Pass 2: every remaining anchor a link targets gets a sanitized HTML id.
     let mut assign = |id: &str| {
-        if !resolved.contains_key(id) {
+        if linked.contains(id) && !resolved.contains_key(id) {
             let html = unique(&mut used, sanitize_id(id));
             resolved.insert(id.to_string(), Resolved { fragment: html, emit_html: true });
         }
@@ -66,6 +76,26 @@ pub(crate) fn resolve_anchors(doc: &Document) -> AnchorMap {
     }
 
     AnchorMap { resolved }
+}
+
+fn collect_link_targets<'a>(block: &'a Block, out: &mut HashSet<&'a str>) {
+    match block {
+        Block::Heading { content, .. } | Block::Paragraph(content) => {
+            for_each_link_target(content, out)
+        }
+        _ => {}
+    }
+}
+
+fn for_each_link_target<'a>(inlines: &'a [Inline], out: &mut HashSet<&'a str>) {
+    for inline in inlines {
+        if let Inline::Link { content, target } = inline {
+            if let LinkTarget::Anchor(id) = target {
+                out.insert(id.as_str());
+            }
+            for_each_link_target(content, out);
+        }
+    }
 }
 
 fn bind_block_anchors(block: &Block, assign: &mut impl FnMut(&str)) {
