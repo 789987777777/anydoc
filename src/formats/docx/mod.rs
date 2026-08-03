@@ -265,6 +265,22 @@ mod tests {
     }
 
     #[test]
+    fn unpreserved_no_break_space_is_kept() {
+        // The xml:space contract governs XML whitespace; a no-break space is
+        // character data, so it survives an unmarked edge.
+        let nbsp = '\u{a0}';
+        let document = format!(
+            r#"<w:document {W}><w:body><w:p>
+            <w:r><w:t>before{nbsp}</w:t></w:r>
+            <w:r><w:t>after</w:t></w:r>
+            </w:p></w:body></w:document>"#
+        );
+        let doc = parse(&docx_parts(&[("word/document.xml", &document)])).unwrap();
+        let Some(Block::Paragraph(inlines)) = doc.blocks.first() else { panic!() };
+        assert_eq!(crate::model::inlines_to_plain_text(inlines), "before after");
+    }
+
+    #[test]
     fn numbered_heading_keeps_its_number() {
         // H1: a heading style with numbering shows its label and advances
         // the sequence.

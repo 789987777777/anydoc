@@ -11,7 +11,7 @@ use crate::package::relationships::{RelTarget, Relationships, TargetMode, rel_ta
 use crate::package::xml::{Element, ns};
 use crate::shared::fields::{FieldFrame, field_result};
 use crate::shared::list::{ListEntry, ListKey, flush_list};
-use crate::shared::text::clean_text;
+use crate::shared::text::{clean_text, is_xml_space};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -435,9 +435,17 @@ impl<'a, 'b, 'e> InlineWalker<'a, 'b, 'e> {
                     // Open XML text-space contract: edge whitespace in w:t
                     // is significant only under xml:space="preserve";
                     // unmarked edges are discarded (Word never renders them).
+                    // Only XML whitespace counts: a no-break space is
+                    // character data, not whitespace the contract may drop.
                     let preserved = child.attr_qualified(ns::XML, "space") == Some("preserve");
-                    let text = clean_text(&child.text());
-                    let text = if preserved { text } else { text.trim().to_string() };
+                    let raw = child.text();
+                    // The contract applies to the XML text, before
+                    // normalization turns a no-break space into a space.
+                    let text = clean_text(if preserved {
+                        raw.as_ref()
+                    } else {
+                        raw.trim_matches(is_xml_space)
+                    });
                     if !text.is_empty() {
                         self.push(Inline::Text { text, style });
                     }
