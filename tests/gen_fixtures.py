@@ -13,6 +13,7 @@ Usage: python tests/gen_fixtures.py [--skip-office]
 
 import base64
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -58,6 +59,23 @@ def convert_lo(src, filter_spec, out_dir, final_name):
         if target.exists():
             target.unlink()
         produced.rename(target)
+    if ext == "rtf":
+        anchor_local_paths(target)
+
+
+# LibreOffice resolves a relative hyperlink against the source file's own
+# location on RTF export, so the generating machine's absolute path lands in
+# the fixture. Anchor it to a fixed root: the fixture tests that a `HYPERLINK`
+# field carrying a file URL is read, not which directory generated it.
+FIXTURE_URI_ROOT = b"file:///anydoc"
+
+
+def anchor_local_paths(path):
+    data = path.read_bytes()
+    anchored = re.sub(rb'file:///[^"]*?/tests/fixture-src/',
+                      FIXTURE_URI_ROOT + b"/tests/fixture-src/", data)
+    if anchored != data:
+        path.write_bytes(anchored)
 
 
 def write_cfb(path, streams):
