@@ -6,13 +6,13 @@ Office, text, and presentation documents; PDFs are out of scope.
 
 ## Competitors
 
-| tool | formats benchmarked |
-| --- | --- |
-| markitdown (Microsoft, Python) | docx, xlsx, xls, epub, csv, pptx |
-| pandoc (CLI) | docx, odt, rtf, epub, csv |
-| docling (IBM, Python) | docx, xlsx, csv, pptx |
-| unstructured (Python) | doc, docx, odt, rtf, epub, xls, xlsx, csv, ppt, pptx |
-| mammoth + turndown (Node) | docx |
+| tool                                 | formats benchmarked                                                   |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| markitdown                           | docx, xlsx, xls, epub, csv, pptx                                      |
+| pandoc                               | docx, odt, rtf, epub, csv                                             |
+| docling                              | docx, xlsx, csv, pptx                                                 |
+| unstructured                         | doc, docx, odt, rtf, epub, xls, xlsx, csv, ppt, pptx                  |
+| mammoth + turndown                   | docx                                                                  |
 | LibreOffice headless → HTML → pandoc | doc, docx, docm, odt, rtf, xls, xlsx, xlsm, xlsb, ods, ppt, pptx, odp |
 
 Missing tools are skipped with a warning, so a partial setup still runs.
@@ -30,7 +30,7 @@ npm install                                      # mammoth pipeline
 
 Also needed on PATH: `pandoc`, `node`, and LibreOffice (`soffice`; set the
 `SOFFICE` env var if it's not in a standard location). Close any running
-LibreOffice GUI before benchmarking — it silently swallows headless calls.
+LibreOffice GUI before benchmarking: it silently swallows headless calls.
 
 ## Running
 
@@ -49,7 +49,7 @@ All artifacts land in `out/` (gitignored). `convert.py` appends to
 
 - **Speed**: min of `--iters` warm runs. anydoc, markitdown, docling, unstructured,
   and mammoth are timed in-process; pandoc and LibreOffice include process spawn
-  (that's how they're used in practice — called out in the report).
+  (that's how they're used in practice, and it's called out in the report).
 - **Quality, deterministic**: heading/table/list/link/footnote counts per output,
   plus word-trigram containment between each tool and anydoc (a cheap
   dropped-content detector, not a truth measure).

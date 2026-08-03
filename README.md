@@ -96,41 +96,39 @@ anydoc::Format::from_path(Path::new("report.odt"));
 
 Against six well-known converters on 107 real-world documents spanning fourteen formats, run with the harness in [`bench/`](bench/README.md).
 
-| tool | formats | median ms | docs judged | score | completeness | structure | formatting | cleanliness |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| anydoc | **14/14** | **4.7** | 94 | **80** | **88** | **78** | **77** | **79** |
-| libreoffice | 12/14 | 1129.5 | 87 | 40 | 59 | 43 | 43 | 24 |
-| unstructured | 8/14 | 572.9 | 58 | 65 | 76 | 62 | 52 | 67 |
-| markitdown | 6/14 | 134.8 | 33 | 65 | 80 | 67 | 61 | 53 |
-| pandoc | 5/14 | 102.1 | 34 | 57 | 75 | 57 | 58 | 39 |
-| docling | 4/14 | 513.6 | 21 | 57 | 63 | 59 | 57 | 52 |
-| mammoth | 1/14 | 52.5 | 8 | 70 | 85 | 68 | 74 | 55 |
+| tool         | formats   | median ms | docs judged | score  | completeness | structure | formatting | cleanliness |
+| ------------ | --------- | --------- | ----------- | ------ | ------------ | --------- | ---------- | ----------- |
+| anydoc       | **14/14** | **4.7**   | 94          | **80** | **88**       | **78**    | **77**     | **79**      |
+| libreoffice  | 12/14     | 1129.5    | 87          | 40     | 59           | 43        | 43         | 24          |
+| unstructured | 8/14      | 572.9     | 58          | 65     | 76           | 62        | 52         | 67          |
+| markitdown   | 6/14      | 134.8     | 33          | 65     | 80           | 67        | 61         | 53          |
+| pandoc       | 5/14      | 102.1     | 34          | 57     | 75           | 57        | 58         | 39          |
+| docling      | 4/14      | 513.6     | 21          | 57     | 63           | 59        | 57         | 52          |
+| mammoth      | 1/14      | 52.5      | 8           | 70     | 85           | 68        | 74         | 55          |
 
 | format | anydoc | libreoffice | unstructured | markitdown | pandoc | docling | mammoth |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| doc | **88** | 58 | 68 | - | - | - | - |
-| docm | **82** | 49 | - | - | - | - | - |
-| docx | **86** | 53 | 56 | 72 | 68 | 68 | 70 |
-| epub | 74 | - | 74 | **77** | 53 | - | - |
-| odp | **87** | 22 | - | - | - | - | - |
-| ods | **82** | 42 | - | - | - | - | - |
-| odt | **80** | 52 | 70 | - | 61 | - | - |
-| ppt | **80** | 25 | - | - | - | - | - |
-| pptx | **76** | 22 | - | 59 | - | 50 | - |
-| rtf | **89** | 58 | 48 | - | 46 | - | - |
-| xls | **77** | 40 | 68 | 64 | - | - | - |
-| xlsm | **70** | 30 | - | - | - | - | - |
-| xlsx | **70** | 31 | 69 | 55 | - | 51 | - |
+| ------ | ------ | ----------- | ------------ | ---------- | ------ | ------- | ------- |
+| doc    | **88** | 58          | 68           | -          | -      | -       | -       |
+| docm   | **82** | 49          | -            | -          | -      | -       | -       |
+| docx   | **86** | 53          | 56           | 72         | 68     | 68      | 70      |
+| epub   | 74     | -           | 74           | **77**     | 53     | -       | -       |
+| odp    | **87** | 22          | -            | -          | -      | -       | -       |
+| ods    | **82** | 42          | -            | -          | -      | -       | -       |
+| odt    | **80** | 52          | 70           | -          | 61     | -       | -       |
+| ppt    | **80** | 25          | -            | -          | -      | -       | -       |
+| pptx   | **76** | 22          | -            | 59         | -      | 50      | -       |
+| rtf    | **89** | 58          | 48           | -          | 46     | -       | -       |
+| xls    | **77** | 40          | 68           | 64         | -      | -       | -       |
+| xlsm   | **70** | 30          | -            | -          | -      | -       | -       |
+| xlsx   | **70** | 31          | 69           | 55         | -      | 51      | -       |
 
-Quality is scored by an LLM judge (Claude Sonnet 5). For each document, anydoc's output and one competitor's are shown blind against ground truth - the document's first six pages rendered by LibreOffice, attached as images - and each output is scored 1 to 5 on completeness, structure, formatting, and cleanliness. Every pair is judged twice with the two outputs swapped, so position bias shows up as disagreement. The numbers above are the mean of those scores as a percentage of the maximum, over 479 verdicts. CSV is converted but not judged: a rendered CSV is not a meaningful reference.
-
-The judge is told the deliverable is GitHub-Flavored Markdown, so raw HTML counts against cleanliness and content carried only inside HTML does not count as present. Where the source uses something Markdown has no syntax for, the rubric takes no position on the right answer.
+Quality is scored by an LLM judge (Claude Sonnet 5). For each document, anydoc's output and one competitor's are shown blind against ground truth - the document's first six pages rendered by LibreOffice, attached as images - and each output is scored 1 to 5 on completeness, structure, formatting, and cleanliness. Every pair is judged twice with the two outputs swapped, so position bias shows up as disagreement. The numbers above are the mean of those scores as a percentage of the maximum, over 479 verdicts.
 
 `score` averages a tool's per-format scores over the formats it supports, so a corpus with many documents in one format cannot skew it. It is not comparable across rows: each tool is judged only on the formats it reads, and mammoth's number covers eight Word documents where anydoc's covers ninety-four across every format. The per-format table is the like-for-like comparison.
 
 Speed is one warm conversion per document, timed in-process for anydoc and the Python libraries and including process spawn for the CLI tools, since that is how they are used.
 
-Preliminary: one machine (Windows 11), one run, and the corpus is not public.
+Preliminary: one run on one machine (Ryzen 9 9950X3D, 16 cores, 64 GB DDR5-6400, Windows 11), and the corpus is not redistributable, so these numbers cannot be reproduced as published.
 
 ## Development
 
