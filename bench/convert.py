@@ -7,6 +7,7 @@ Python tools are timed in-process (warm); CLI tools include process spawn.
 import argparse
 import json
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -49,14 +50,18 @@ def anydoc_bin() -> Path:
 
 
 def convert_anydoc(path: Path, iters: int):
-    r = subprocess.run([str(anydoc_bin()), str(path), "--bench", str(iters)], capture_output=True)
-    if r.returncode != 0:
-        raise RuntimeError(decode(r.stderr).strip())
-    _f, _in, _out, min_ms, mean_ms = decode(r.stdout).strip().split("\t")
-    r = subprocess.run([str(anydoc_bin()), str(path)], capture_output=True)
-    if r.returncode != 0:
-        raise RuntimeError(decode(r.stderr).strip())
-    return decode(r.stdout), float(min_ms), float(mean_ms)
+    # The CLI reports its own conversion time, so process spawn stays out of it.
+    times, text = [], ""
+    for _ in range(iters):
+        r = subprocess.run([str(anydoc_bin()), str(path)], capture_output=True)
+        if r.returncode != 0:
+            raise RuntimeError(decode(r.stderr).strip())
+        text = decode(r.stdout)
+        reported = re.search(r" in ([\d.]+)ms", decode(r.stderr))
+        if not reported:
+            raise RuntimeError("anydoc did not report a conversion time")
+        times.append(float(reported.group(1)))
+    return text, min(times), statistics.fmean(times)
 
 
 # --- markitdown ---
