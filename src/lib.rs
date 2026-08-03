@@ -1,15 +1,5 @@
 //! anydoc converts documents to GitHub-Flavored Markdown.
 //!
-//! One conversion behavior: missing optional parts are ignored, recoverable
-//! producer quirks are recovered automatically, and corrupt or unsupported
-//! subparts are skipped when useful output can still be produced. An error is
-//! returned only when meaningful conversion is impossible, the document is
-//! encrypted, or a fixed safety/resource limit is exceeded.
-//!
-//! Page chrome is excluded by fixed policy in every format: page headers and
-//! footers, page numbers, and date/time placeholders never appear in the
-//! output. Speaker notes in presentations are always included.
-//!
 //! Recovery and skipped-content events are reported through the [`log`]
 //! facade (debug/warn level); logging never changes conversion behavior and
 //! its messages are not a stable API.
@@ -100,8 +90,14 @@ pub fn to_markdown(path: impl AsRef<Path>) -> Result<String, ConvertError> {
     to_markdown_bytes(&bytes, format)
 }
 
-/// Convert an in-memory document to Markdown.
-pub fn to_markdown_bytes(bytes: &[u8], format: Format) -> Result<String, ConvertError> {
+/// Convert an in-memory document to Markdown. Pass a [`Format`] to select the
+/// parser, or `None` to detect it from the content ([`Format::from_bytes`]),
+/// which signature-less formats (CSV) have to name explicitly.
+pub fn to_markdown_bytes(
+    bytes: &[u8],
+    format: impl Into<Option<Format>>,
+) -> Result<String, ConvertError> {
+    let format = resolve_format(bytes, format.into())?;
     // PDFs convert to Markdown directly (pdf-inspector) without passing
     // through the document model.
     if format == Format::Pdf {
@@ -110,10 +106,20 @@ pub fn to_markdown_bytes(bytes: &[u8], format: Format) -> Result<String, Convert
     Ok(document_to_markdown(&to_document(bytes, format)?))
 }
 
-/// Parse an in-memory document into the document model.
+/// Parse an in-memory document into the document model. Pass a [`Format`] to
+/// select the parser, or `None` to detect it from the content.
 ///
 /// Unsupported for [`Format::Pdf`]: PDF conversion produces Markdown
 /// directly and has no document-model form; use [`to_markdown_bytes`].
-pub fn to_document(bytes: &[u8], format: Format) -> Result<model::Document, ConvertError> {
-    formats::parse(bytes, format)
+pub fn to_document(
+    bytes: &[u8],
+    format: impl Into<Option<Format>>,
+) -> Result<model::Document, ConvertError> {
+    formats::parse(bytes, resolve_format(bytes, format.into())?)
+}
+
+fn resolve_format(bytes: &[u8], format: Option<Format>) -> Result<Format, ConvertError> {
+    format.or_else(|| Format::from_bytes(bytes)).ok_or_else(|| {
+        ConvertError::Unsupported("unrecognized file content: name the format explicitly".into())
+    })
 }
