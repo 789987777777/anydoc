@@ -163,10 +163,14 @@ fn format_data(data: &Data) -> String {
         Data::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),
         Data::Error(e) => format!("#{e:?}"),
         Data::DateTime(dt) if dt.is_duration() => format_duration_days(dt.as_f64()),
+        // A serial below one whole day carries no date: it is a time of day.
+        Data::DateTime(dt) if dt.as_f64().abs() < 1.0 => format_time_of_day(dt.as_f64()),
         Data::DateTime(dt) => match dt.as_datetime() {
             Some(d) => {
                 let s = d.to_string();
-                s.strip_suffix(" 00:00:00").unwrap_or(&s).to_string()
+                // Sub-second digits are noise from the serial's float.
+                let s = s.split('.').next().unwrap_or(&s);
+                s.strip_suffix(" 00:00:00").unwrap_or(s).to_string()
             }
             None => format_float(dt.as_f64()),
         },
@@ -174,10 +178,22 @@ fn format_data(data: &Data) -> String {
     }
 }
 
-/// Shortest round-trip float formatting - no fixed-precision rounding, so
-/// values like 0.0000004 survive.
+/// Float formatting at the 15 significant decimal digits a spreadsheet
+/// stores and displays. Shortest round-trip formatting past that surfaces the
+/// binary representation (`3554.7000000000003`); 15 digits still keeps small
+/// values like 0.0000004 exact.
 fn format_float(f: f64) -> String {
-    format!("{f}")
+    match format!("{f:.14e}").parse::<f64>() {
+        Ok(rounded) => format!("{rounded}"),
+        Err(_) => format!("{f}"),
+    }
+}
+
+/// Render a time-of-day serial (a fraction of a day) as `hh:mm:ss`.
+fn format_time_of_day(days: f64) -> String {
+    let total_secs = (days.abs() * 86_400.0).round() as u64 % 86_400;
+    let (h, m, s) = (total_secs / 3600, (total_secs % 3600) / 60, total_secs % 60);
+    format!("{h:02}:{m:02}:{s:02}")
 }
 
 /// Render an Excel duration (stored in days) as `[h]:mm:ss`.
@@ -262,6 +278,24 @@ mod tests {
         assert_eq!(format_float(0.0000004), "0.0000004");
         assert_eq!(format_float(12.0), "12");
         assert_eq!(format_float(1.5), "1.5");
+    }
+
+    #[test]
+    fn time_of_day_serials_carry_no_date() {
+        // 09:04:54 as a fraction of a day, with the float noise a serial
+        // carries in practice.
+        assert_eq!(format_time_of_day(32_694.184 / 86_400.0), "09:04:54");
+        assert_eq!(format_time_of_day(0.0), "00:00:00");
+    }
+
+    #[test]
+    fn floats_render_at_spreadsheet_precision() {
+        assert_eq!(format_float(3554.7000000000003), "3554.7");
+        assert_eq!(format_float(5649.5599999999995), "5649.56");
+        assert_eq!(format_float(346_289_529.491_800_1), "346289529.4918");
+        // Small values stay exact: 15 significant digits reaches far below 1.
+        assert_eq!(format_float(0.0000004), "0.0000004");
+        assert_eq!(format_float(1.0), "1");
     }
 
     #[test]
