@@ -1,6 +1,11 @@
+[workspace]
+members = ["node"]
+# cargo-fuzz keeps its own lockfile and nightly-only dependencies.
+exclude = ["fuzz"]
+
 [package]
 name = "anydoc"
-version = "0.3.0"
+version = "0.1.0"
 edition = "2024"
 description = "Convert documents (doc, docx, odt, rtf, epub, pdf, presentations, spreadsheets, csv) to GitHub-Flavored Markdown"
 license = "MIT"
@@ -12,7 +17,7 @@ include = ["/src", "/examples/convert.rs", "/README.md", "/LICENSE"]
 
 [dev-dependencies]
 insta = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dependencies]
 calamine = { version = "0.36.1", features = ["dates"] }
@@ -24,3 +29,7 @@ log = "0.4"
 pdf-inspector = "0.1.7"
 quick-xml = "0.41.0"
 zip = "8.6.0"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
