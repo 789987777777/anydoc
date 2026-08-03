@@ -223,10 +223,11 @@ fn samples_sweep() {
 
 fn digest(output: &str) -> String {
     use sha2::{Digest, Sha256};
-    let hash = Sha256::digest(output.as_bytes());
+    let hash: String =
+        Sha256::digest(output.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
     let mut s = String::new();
     writeln!(s, "chars: {}", output.chars().count()).unwrap();
-    writeln!(s, "sha256: {hash:x}").unwrap();
+    writeln!(s, "sha256: {hash}").unwrap();
     writeln!(s, "--- head ---").unwrap();
     let head: String = output.chars().take(2000).collect();
     s.push_str(&head);
