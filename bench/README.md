@@ -4,6 +4,9 @@ Benchmarks anydoc against well-known document-to-markdown converters on the
 `samples/` corpus, for both speed and quality (deterministic metrics + LLM judge).
 Office, text, and presentation documents; PDFs are out of scope.
 
+The corpus is not redistributable and is not in the repo. The harness reads
+whatever documents are in `samples/`.
+
 ## Competitors
 
 | tool                                 | formats benchmarked                                                   |
@@ -35,7 +38,7 @@ LibreOffice GUI before benchmarking: it silently swallows headless calls.
 ## Running
 
 ```
-python convert.py --iters 3            # convert everything with every tool
+python convert.py --iters 1            # convert everything with every tool
 python render_truth.py                 # ground-truth page images via soffice + pymupdf
 python metrics.py                      # structure counts + trigram containment
 python judge.py --limit 25            # pairwise LLM judging (see cost note)
@@ -47,9 +50,11 @@ All artifacts land in `out/` (gitignored). `convert.py` appends to
 
 ## Methodology notes
 
-- **Speed**: min of `--iters` warm runs. anydoc, markitdown, docling, unstructured,
-  and mammoth are timed in-process; pandoc and LibreOffice include process spawn
-  (that's how they're used in practice, and it's called out in the report).
+- **Speed**: min of `--iters` warm runs, and the published numbers use `--iters 1`,
+  one warm conversion per document. markitdown, docling, unstructured, and mammoth
+  are timed in-process. anydoc is timed from the conversion time its own CLI reports,
+  which likewise leaves out process spawn. pandoc and LibreOffice include process
+  spawn (that's how they're used in practice, and it's called out in the report).
 - **Quality, deterministic**: heading/table/list/link/footnote counts per output,
   plus word-trigram containment between each tool and anydoc (a cheap
   dropped-content detector, not a truth measure).

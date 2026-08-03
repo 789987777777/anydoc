@@ -2,7 +2,7 @@
 
 Convert documents to GitHub-Flavored Markdown. A [Firecrawl](https://firecrawl.dev) project.
 
-Every format parses into one shared document model and renders through a single GFM serializer, so escaping, tables, anchors, and footnotes behave the same no matter what you feed in.
+Every format parses into one shared document model and renders through a single GFM serializer. Escaping, tables, anchors, and footnotes behave the same no matter what you feed in.
 
 ## Supported formats
 
@@ -17,13 +17,13 @@ Every format parses into one shared document model and renders through a single 
 | CSV              | `.csv`                                                     |
 | PDF              | `.pdf`                                                     |
 
-PDFs are converted with [pdf-inspector](https://github.com/firecrawl/pdf-inspector), which emits Markdown directly, so they have no document-model form. Scanned and image-only PDFs need OCR, which is out of scope: they error as unsupported.
+PDFs are converted with [pdf-inspector](https://github.com/firecrawl/pdf-inspector), which emits Markdown directly without building a document model. `to_document` rejects them. Use `to_markdown_bytes` instead. Scanned and image-only PDFs need OCR, which is out of scope: they error as unsupported.
 
 ## What's parsed
 
 Headings and their anchors, paragraphs, bold, italic, strikethrough and inline code, links (external, relative, and internal cross-references), bulleted, ordered, nested and task lists with the numbering the source assigns them, tables with merged cells and header rows, block quotes, code blocks, footnotes and endnotes, speaker notes, and embedded images and objects.
 
-Markdown cannot embed bytes, so an embedded image renders as its alt text while the bytes stay on the document model, tagged with a media type and the part they came from (`Document::assets` in Rust, `document.assets` in Node). Images that carry an external URL render as ordinary Markdown images.
+An embedded image renders as its alt text, because Markdown cannot embed bytes. The bytes stay on the document model, tagged with a media type and the part they came from (`Document::assets` in Rust, `document.assets` in Node). Images that carry an external URL render as ordinary Markdown images.
 
 ## Node
 
@@ -35,13 +35,13 @@ npm install @firecrawl/anydoc
 import { toDocument, toMarkdown, toMarkdownBytes } from '@firecrawl/anydoc';
 
 // From a file path:
-const markdown = await toMarkdown('report.docx');
+const fromPath = await toMarkdown('report.docx');
 
 // From bytes, with the format detected from the content:
-const markdown = await toMarkdownBytes(bytes);
+const fromBytes = await toMarkdownBytes(bytes);
 
 // Or name it, which signature-less formats (CSV) need:
-const markdown = await toMarkdownBytes(bytes, 'csv');
+const fromCsv = await toMarkdownBytes(bytes, 'csv');
 
 // Or stop at the document model, which also carries embedded assets:
 const document = await toDocument(bytes);
@@ -78,7 +78,7 @@ node examples/convert.mjs file.docx [-f csv] [-o out.md] [--assets dir]
 
 ## Format detection
 
-The format is read from the file content: the signature and identity each container specification designates (PDF header, RTF open group, OLE stream names, ZIP package mimetype and content types). Signature-less formats like CSV have no such marker, so detection returns nothing for them and the extension, or an explicit format, names them instead.
+The format is read from the file content, using the marker its specification designates: the PDF header, the RTF open group, OLE stream names, the ZIP package mimetype and content types. CSV has no such marker. Detection returns nothing for it, and the extension or an explicit format names it instead.
 
 ```js
 formatFromBytes(bytes); // 'docx', or null when nothing matches
@@ -94,7 +94,7 @@ anydoc::Format::from_path(Path::new("report.odt"));
 
 ## Benchmarks
 
-Against six well-known converters on 107 real-world documents spanning fourteen formats, run with the harness in [`bench/`](bench/README.md).
+anydoc is measured against six other converters on 100 real-world documents spanning fourteen formats, using the harness in [`bench/`](bench/README.md).
 
 | tool         | formats   | median ms | docs judged | score  | completeness | structure | formatting | cleanliness |
 | ------------ | --------- | --------- | ----------- | ------ | ------------ | --------- | ---------- | ----------- |
@@ -122,13 +122,13 @@ Against six well-known converters on 107 real-world documents spanning fourteen 
 | xlsm   | **70** | 30          | -            | -          | -      | -       | -       |
 | xlsx   | **70** | 31          | 69           | 55         | -      | 51      | -       |
 
-Quality is scored by an LLM judge (Claude Sonnet 5). For each document, anydoc's output and one competitor's are shown blind against ground truth - the document's first six pages rendered by LibreOffice, attached as images - and each output is scored 1 to 5 on completeness, structure, formatting, and cleanliness. Every pair is judged twice with the two outputs swapped, so position bias shows up as disagreement. The numbers above are the mean of those scores as a percentage of the maximum, over 479 verdicts.
+Quality is scored by an LLM judge (Claude Sonnet 5). For each document, anydoc's output and one competitor's are shown blind against ground truth: the document's first six pages, rendered by LibreOffice and attached as images. Each output is scored 1 to 5 on completeness, structure, formatting, and cleanliness. Every pair is judged twice with the two outputs swapped, so position bias shows up as disagreement. The numbers above are the mean of those scores as a percentage of the maximum, over 479 verdicts.
 
-`score` averages a tool's per-format scores over the formats it supports, so a corpus with many documents in one format cannot skew it. It is not comparable across rows: each tool is judged only on the formats it reads, and mammoth's number covers eight Word documents where anydoc's covers ninety-four across every format. The per-format table is the like-for-like comparison.
+`score` is the mean of a tool's per-format scores over the formats it supports, which keeps a corpus heavy in one format from skewing it. The tradeoff is that each row averages a different set: mammoth's 70 is docx alone, while anydoc's 80 spans all fourteen. The per-format table is the like-for-like comparison.
 
-Speed is one warm conversion per document, timed in-process for anydoc and the Python libraries and including process spawn for the CLI tools, since that is how they are used.
+Speed is one warm conversion per document. anydoc and the Python libraries are timed with process spawn excluded. The CLI tools include it, since that is how they are used.
 
-Preliminary: one run on one machine (Ryzen 9 9950X3D, 16 cores, 64 GB DDR5-6400, Windows 11), and the corpus is not redistributable, so these numbers cannot be reproduced as published.
+Measured in one run on a Ryzen 9 9950X3D with 64 GB of DDR5-6400, on Windows 11. The corpus itself is not redistributable and is not in the repo. The harness reads whatever documents are in `samples/`.
 
 ## Development
 
