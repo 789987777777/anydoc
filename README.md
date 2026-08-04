@@ -32,7 +32,7 @@ Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM
 | CSV              | `.csv`                                                     |
 | PDF              | `.pdf`                                                     |
 
-PDFs take a shortcut: [pdf-inspector](https://github.com/firecrawl/pdf-inspector) emits Markdown directly, so use `to_markdown` / `to_markdown_bytes` for them rather than `to_document`. Scanned and image-only PDFs need OCR, which anydoc leaves to dedicated services; they return an unsupported error so you can route them.
+PDFs take a shortcut: [pdf-inspector](https://github.com/firecrawl/pdf-inspector) emits Markdown directly, so use `to_markdown` / `to_markdown_bytes` for them rather than `to_document`. Scanned and image-only PDFs need OCR, so anydoc returns an unsupported error for them; route those to Firecrawl's hosted [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse), which OCRs them and returns the same Markdown.
 
 ## Benchmark
 
