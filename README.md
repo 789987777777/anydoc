@@ -156,13 +156,13 @@ python examples/convert.py file.docx [-f csv] [-o out.md] [--assets dir]
 
 The format is read from the file content, using the marker its specification designates: the PDF header, the RTF open group, OLE stream names, the ZIP package mimetype and content types. CSV has no such marker, so the extension or an explicit format names it instead.
 
-```js
-formatFromBytes(bytes); // 'docx', or null when nothing matches
-formatFromExtension('.pptm'); // 'pptx'
-formatFromPath('report.odt'); // 'odt'
+```rust
+Format::from_bytes(&bytes); // Some(Format::Docx), or None when nothing matches
+Format::from_extension("pptm"); // Some(Format::Pptx)
+Format::from_path(Path::new("report.odt")); // Some(Format::Odt)
 ```
 
-The same three functions exist in Python (`anydoc.format_from_bytes`, ...) and Rust (`anydoc::Format::from_bytes`, ...).
+The same three functions exist in Node (`formatFromBytes`, ...) and Python (`anydoc.format_from_bytes`, ...).
 
 ## How it works
 
