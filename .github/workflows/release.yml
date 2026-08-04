@@ -177,13 +177,10 @@ jobs:
   npm:
     name: npmjs.com
     needs: test
-    # npm provenance is only accepted from GitHub-hosted runners.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       # GitHub release created by `napi prepublish`
       contents: write
-      # npm provenance
-      id-token: write
     defaults:
       run:
         working-directory: node
@@ -203,9 +200,9 @@ jobs:
       - run: ls -R ./npm
       # `prepublishOnly` runs `napi prepublish`, which publishes the
       # per-platform packages and wires them up as optionalDependencies.
+      # No provenance: npm only accepts it from GitHub-hosted runners.
       - name: Publish
         run: |
-          npm config set provenance true
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public
         env:
