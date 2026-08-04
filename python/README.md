@@ -1,12 +1,19 @@
 # firecrawl-anydoc
 
-Convert documents to GitHub-Flavored Markdown. Python bindings for the [anydoc](https://github.com/firecrawl/anydoc) Rust crate. A [Firecrawl](https://firecrawl.dev) project.
+[![PyPI](https://img.shields.io/pypi/v/firecrawl-anydoc.svg)](https://pypi.org/project/firecrawl-anydoc/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/firecrawl/anydoc/blob/main/LICENSE)
 
-```
+Convert Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF files into clean GitHub-Flavored Markdown. Python bindings for the [anydoc](https://github.com/firecrawl/anydoc) Rust crate, built by [Firecrawl](https://firecrawl.dev). Also available as a hosted API via the [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse).
+
+Every format parses into one shared document model and renders through a single Markdown serializer, so headings, tables, lists, and footnotes come out the same no matter which format goes in. Conversion releases the GIL, so other threads keep running. Type stubs ship with the package.
+
+```bash
 pip install firecrawl-anydoc
 ```
 
 The package installs as `firecrawl-anydoc` and imports as `anydoc`.
+
+## Supported formats
 
 | Format           | Extensions                                                 |
 | ---------------- | ---------------------------------------------------------- |
@@ -37,11 +44,9 @@ markdown = anydoc.to_markdown_bytes(data, "csv")
 document = anydoc.to_document(data)
 ```
 
-Conversion releases the GIL, so other threads keep running. Type stubs ship with the package.
-
 ## Format detection
 
-The format is read from the file content: the signature and identity each container specification designates (PDF header, RTF open group, OLE stream names, ZIP package mimetype and content types). Signature-less formats like CSV have no such marker, so detection returns `None` for them and the extension, or an explicit format, names them instead.
+The format is read from the file content, using the marker its specification designates: the PDF header, the RTF open group, OLE stream names, the ZIP package mimetype and content types. CSV has no such marker, so detection returns `None` for it and the extension, or an explicit format, names it instead.
 
 ```python
 anydoc.format_from_bytes(data)  # 'docx', or None when nothing matches
@@ -53,7 +58,7 @@ anydoc.format_from_path("report.odt")  # 'odt'
 
 Markdown cannot embed bytes, so an embedded image renders as its alt text while the bytes stay on `document.assets`, tagged with a media type and the part they came from. Images that carry an external URL render as ordinary Markdown images.
 
-The full format and behavior notes live in the [repository README](https://github.com/firecrawl/anydoc#readme).
+Full behavior notes and benchmarks live in the [repository README](https://github.com/firecrawl/anydoc#readme).
 
 ## License
 
