@@ -48,3 +48,20 @@ jobs:
       - run: npm test
       - name: Generated bindings are up to date
         run: git diff --exit-code -- index.js index.d.ts
+
+  python:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install maturin
+      - run: maturin build --release --out wheels
+      - run: pip install --no-index --find-links wheels firecrawl-anydoc
+      - run: python -m unittest discover -s tests -v

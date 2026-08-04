@@ -1,7 +1,7 @@
 name: Release
 
-# Publishes the crate to crates.io and @firecrawl/anydoc to npm. Tag a release
-# commit as `v<version>` and push it.
+# Publishes the crate to crates.io, @firecrawl/anydoc to npm, and
+# firecrawl-anydoc to PyPI. Tag a release commit as `v<version>` and push it.
 on:
   push:
     tags:
@@ -176,3 +176,135 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Python wheels are abi3: one wheel per platform covers every CPython from
+  # 3.10 up. Linux wheels build inside maturin's manylinux2014 containers
+  # (glibc 2.17, the same floor napi-cross gives the Node addon); musl wheels
+  # build as musllinux_1_2.
+  wheel:
+    name: wheel ${{ matrix.settings.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: blacksmith-6vcpu-macos-latest
+            target: x86_64-apple-darwin
+          - host: blacksmith-6vcpu-macos-latest
+            target: aarch64-apple-darwin
+          - host: blacksmith-8vcpu-windows-2025
+            target: x86_64-pc-windows-msvc
+          - host: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-gnu
+            manylinux: '2014'
+          - host: blacksmith-4vcpu-ubuntu-2404-arm
+            target: aarch64-unknown-linux-gnu
+            manylinux: '2014'
+          - host: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-musl
+            manylinux: musllinux_1_2
+          - host: blacksmith-4vcpu-ubuntu-2404-arm
+            target: aarch64-unknown-linux-musl
+            manylinux: musllinux_1_2
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.settings.target }}
+          manylinux: ${{ matrix.settings.manylinux }}
+          args: --release --out wheels --manifest-path python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.settings.target }}
+          path: wheels/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: sdist
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out wheels --manifest-path python/Cargo.toml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: wheels/*.tar.gz
+          if-no-files-found: error
+
+  test-wheel:
+    name: test wheel ${{ matrix.settings.target }}
+    needs: wheel
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: blacksmith-6vcpu-macos-latest
+            target: aarch64-apple-darwin
+            architecture: arm64
+          - host: blacksmith-6vcpu-macos-latest
+            target: x86_64-apple-darwin
+            architecture: x64
+          - host: blacksmith-4vcpu-windows-2025
+            target: x86_64-pc-windows-msvc
+            architecture: x64
+          - host: blacksmith-4vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-gnu
+            image: python:3.13-slim
+          - host: blacksmith-4vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-musl
+            image: python:3.13-alpine
+          - host: blacksmith-4vcpu-ubuntu-2404-arm
+            target: aarch64-unknown-linux-gnu
+            image: python:3.13-slim
+          - host: blacksmith-4vcpu-ubuntu-2404-arm
+            target: aarch64-unknown-linux-musl
+            image: python:3.13-alpine
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        if: ${{ !matrix.settings.image }}
+        with:
+          python-version: '3.13'
+          architecture: ${{ matrix.settings.architecture }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheels-${{ matrix.settings.target }}
+          path: wheels
+      # The wheel and its tests need no dependencies installed.
+      - name: Test
+        if: ${{ !matrix.settings.image }}
+        shell: bash
+        run: |
+          pip install --no-index --find-links wheels firecrawl-anydoc
+          python -m unittest discover -s python/tests
+      - name: Test in container
+        if: ${{ matrix.settings.image }}
+        run: >
+          docker run --rm -v ${{ github.workspace }}:/build -w /build
+          ${{ matrix.settings.image }} sh -c
+          "pip install --no-index --find-links wheels firecrawl-anydoc &&
+          python -m unittest discover -s python/tests"
+
+  pypi:
+    name: pypi.org
+    needs:
+      - test-wheel
+      - sdist
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      # PyPI trusted publishing: pypi.org holds a publisher for
+      # firecrawl-anydoc pointing at this repository and workflow.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
