@@ -7,7 +7,7 @@
 
 Fast Rust library that converts documents (Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF) into clean GitHub-Flavored Markdown. Includes bindings for [Node.js](node/README.md) and [Python](python/README.md).
 
-Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM-ready Markdown in single-digit milliseconds, with one consistent output no matter which format goes in. If you'd rather not run it yourself, the hosted [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse) offers the same conversion as an API but it also includes our OCR models for advanced parsing.
+Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM-ready Markdown in single-digit milliseconds, with one consistent output no matter which format goes in. If you'd rather not run it yourself, the hosted [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse) offers the same conversion as an API, with OCR models on top for scanned documents.
 
 ## Features
 
