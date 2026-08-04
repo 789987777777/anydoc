@@ -49,6 +49,32 @@ const document = await toDocument(bytes);
 
 Conversion runs on the libuv thread pool, so it never blocks the event loop. TypeScript types ship with the package.
 
+## Python
+
+```
+pip install firecrawl-anydoc
+```
+
+The package installs as `firecrawl-anydoc` and imports as `anydoc`.
+
+```python
+import anydoc
+
+# From a file path:
+markdown = anydoc.to_markdown("report.docx")
+
+# From bytes, with the format detected from the content:
+markdown = anydoc.to_markdown_bytes(data)
+
+# Or name it, which signature-less formats (CSV) need:
+markdown = anydoc.to_markdown_bytes(data, "csv")
+
+# Or stop at the document model, which also carries embedded assets:
+document = anydoc.to_document(data)
+```
+
+Conversion releases the GIL, so other threads keep running. Type stubs ship with the package.
+
 ## Rust
 
 ```
@@ -69,11 +95,12 @@ let markdown = anydoc::to_markdown_bytes(&bytes, anydoc::Format::Csv)?;
 let document = anydoc::to_document(&bytes, None)?;
 ```
 
-A CLI for manual testing ships in [`examples/`](examples/), in both languages:
+A CLI for manual testing ships in [`examples/`](examples/), in all three languages:
 
 ```
 cargo run --release --example convert -- file.docx [-f csv] [-o out.md] [--assets dir]
 node examples/convert.mjs file.docx [-f csv] [-o out.md] [--assets dir]
+python examples/convert.py file.docx [-f csv] [-o out.md] [--assets dir]
 ```
 
 ## Format detection
@@ -84,6 +111,12 @@ The format is read from the file content, using the marker its specification des
 formatFromBytes(bytes); // 'docx', or null when nothing matches
 formatFromExtension('.pptm'); // 'pptx'
 formatFromPath('report.odt'); // 'odt'
+```
+
+```python
+anydoc.format_from_bytes(data)  # 'docx', or None when nothing matches
+anydoc.format_from_extension(".pptm")  # 'pptx'
+anydoc.format_from_path("report.odt")  # 'odt'
 ```
 
 ```rust
@@ -135,11 +168,16 @@ Measured in one run on a Ryzen 9 9950X3D with 64 GB of DDR5-6400, on Windows 11.
 ```
 cargo test
 cd node && npm install && npm run build && npm test
+cd python && pip install maturin && maturin develop && python -m unittest discover -s tests
 ```
 
 A committed fixture corpus under `tests/fixtures/` is snapshot-tested, `tests/robustness.rs` mutation-tests every fixture, and `fuzz/` carries cargo-fuzz targets per format. A speed and quality benchmark against other converters lives in [`bench/`](bench/README.md).
 
-Releases are tagged `v<version>`, which publishes the crate and the npm package from [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Releases are tagged `v<version>`, which publishes the crate, the npm package, and the PyPI wheels from [`.github/workflows/release.yml`](.github/workflows/release.yml). The version lives in three places, bumped together for a release:
+
+- [`Cargo.toml`](Cargo.toml) — the crate
+- [`node/package.json`](node/package.json) — the npm package
+- [`python/Cargo.toml`](python/Cargo.toml) — the wheel (`python/pyproject.toml` reads it)
 
 ## License
 
