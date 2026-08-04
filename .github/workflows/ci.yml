@@ -6,15 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  test:
+  rust:
+    name: Rust
     runs-on: blacksmith-8vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v7
@@ -22,18 +23,16 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Format
-        run: cargo fmt --check --all
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: Test
-        run: cargo test
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # Root package only: the node/ and python/ binding crates are cdylib-only
+      # and their test harnesses cannot link outside a Node/Python host; they
+      # are covered by the node and python jobs instead.
+      - run: cargo test --locked
 
   node:
+    name: Node bindings
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    defaults:
-      run:
-        working-directory: node
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -44,16 +43,23 @@ jobs:
           cache: npm
           cache-dependency-path: node/package-lock.json
       - run: npm ci
+        working-directory: node
       - run: npm run build
+        working-directory: node
       - run: npm test
-      - name: Generated bindings are up to date
-        run: git diff --exit-code -- index.js index.d.ts
+        working-directory: node
+      - name: Committed bindings are up to date
+        # `npm run build` regenerates index.js / index.d.ts; any diff means the
+        # committed generated bindings are stale and must be rebuilt and committed.
+        run: |
+          if ! git diff --exit-code -- node/index.js node/index.d.ts; then
+            echo "::error::node/index.js or node/index.d.ts is out of date. Run 'npm run build' in node/ and commit the result."
+            exit 1
+          fi
 
   python:
+    name: Python bindings
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    defaults:
-      run:
-        working-directory: python
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -62,10 +68,8 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install maturin
-      - run: maturin build --release --out wheels
-      - run: pip install --no-index --find-links wheels firecrawl-anydoc
-      # From the repo root: run inside python/ and the source anydoc/
-      # directory shadows the installed wheel, which holds the compiled
-      # module.
-      - run: python -m unittest discover -s python/tests -v
-        working-directory: ${{ github.workspace }}
+      - run: maturin build --release --locked --manifest-path python/Cargo.toml --out dist
+      - run: pip install --no-index --find-links dist firecrawl-anydoc
+      # Must run from the repo root: with python/ as cwd, the source anydoc/
+      # package dir shadows the installed compiled module.
+      - run: python -m unittest discover -s python/tests
