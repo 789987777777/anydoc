@@ -202,7 +202,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
       - name: Publish (dry run)
-        if: github.event_name == 'workflow_dispatch'
+        # Skipped when the version is live: npm refuses even a --dry-run
+        # publish over an existing version.
+        if: github.event_name == 'workflow_dispatch' && steps.probe.outputs.published == 'false'
         # --ignore-scripts keeps the dry run side-effect free: napi prepublish
         # would otherwise publish the per-platform packages and cut a GitHub release.
         run: npm publish --dry-run --ignore-scripts --access public
