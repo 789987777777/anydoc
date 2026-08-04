@@ -64,4 +64,8 @@ jobs:
       - run: pip install maturin
       - run: maturin build --release --out wheels
       - run: pip install --no-index --find-links wheels firecrawl-anydoc
-      - run: python -m unittest discover -s tests -v
+      # From the repo root: run inside python/ and the source anydoc/
+      # directory shadows the installed wheel, which holds the compiled
+      # module.
+      - run: python -m unittest discover -s python/tests -v
+        working-directory: ${{ github.workspace }}
