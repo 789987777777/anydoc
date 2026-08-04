@@ -1,6 +1,6 @@
 # anydoc
 
-Convert documents to GitHub-Flavored Markdown. A [Firecrawl](https://firecrawl.dev) project.
+Convert documents to GitHub-Flavored Markdown. A [Firecrawl](https://firecrawl.dev) project. Check out the [/parse](https://docs.firecrawl.dev/api-reference/endpoint/parse) endpoint for a hosted option!
 
 Every format parses into one shared document model and renders through a single GFM serializer. Escaping, tables, anchors, and footnotes behave the same no matter what you feed in.
 
