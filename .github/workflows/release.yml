@@ -165,7 +165,7 @@ jobs:
     # (Blacksmith counts as self-hosted), so publishing runs GitHub-hosted.
     runs-on: ubuntu-latest
     permissions:
-      contents: write # napi prepublish creates the GitHub release
+      contents: read
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v7
@@ -199,7 +199,6 @@ jobs:
         working-directory: node
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
       - name: Publish (dry run)
         # Skipped when the version is live: npm refuses even a --dry-run
@@ -389,3 +388,34 @@ jobs:
           packages-dir: dist
           # Tolerate re-running a release where PyPI already got some files.
           skip-existing: true
+
+  # The release page appears last: only once every registry publish has
+  # succeeded, carrying the Node addons, the wheels, and the sdist.
+  github-release:
+    name: GitHub release
+    needs: [publish-npm, publish-crates, publish-pypi]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bindings-*
+          path: assets
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          path: assets
+          merge-multiple: true
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # --clobber keeps a re-run green when some assets already uploaded.
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" assets/* --clobber
