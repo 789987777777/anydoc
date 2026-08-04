@@ -120,24 +120,26 @@ jobs:
             node_arch: x64
           - target: x86_64-pc-windows-msvc
             host: blacksmith-4vcpu-windows-2025
+          # The Linux flavors test through `docker run` rather than container:
+          # jobs — JavaScript actions cannot run inside Alpine containers on
+          # arm64 runners.
           - target: x86_64-unknown-linux-gnu
             host: blacksmith-4vcpu-ubuntu-2404
-            container: node:26-slim
+            image: node:26-slim
           - target: aarch64-unknown-linux-gnu
             host: blacksmith-4vcpu-ubuntu-2404-arm
-            container: node:26-slim
+            image: node:26-slim
           - target: x86_64-unknown-linux-musl
             host: blacksmith-4vcpu-ubuntu-2404
-            container: node:26-alpine
+            image: node:26-alpine
           - target: aarch64-unknown-linux-musl
             host: blacksmith-4vcpu-ubuntu-2404-arm
-            container: node:26-alpine
+            image: node:26-alpine
     runs-on: ${{ matrix.host }}
-    container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        if: ${{ !matrix.container }}
+        if: ${{ !matrix.image }}
         with:
           node-version: 26
           architecture: ${{ matrix.node_arch || '' }}
@@ -146,8 +148,15 @@ jobs:
           name: bindings-${{ matrix.target }}
           path: node
       # The tests run against the downloaded prebuilt addon; no npm install needed.
-      - run: npm test
+      - name: Test
+        if: ${{ !matrix.image }}
+        run: npm test
         working-directory: node
+      - name: Test in container
+        if: ${{ matrix.image }}
+        run: >
+          docker run --rm -v ${{ github.workspace }}:/build -w /build/node
+          ${{ matrix.image }} npm test
 
   publish-npm:
     name: Publish npm
@@ -304,24 +313,26 @@ jobs:
             macos_x64: true
           - target: x86_64-pc-windows-msvc
             host: blacksmith-4vcpu-windows-2025
+          # The Linux flavors test through `docker run` rather than container:
+          # jobs — JavaScript actions cannot run inside Alpine containers on
+          # arm64 runners.
           - target: x86_64-unknown-linux-gnu
             host: blacksmith-4vcpu-ubuntu-2404
-            container: python:3.13-slim
+            image: python:3.13-slim
           - target: aarch64-unknown-linux-gnu
             host: blacksmith-4vcpu-ubuntu-2404-arm
-            container: python:3.13-slim
+            image: python:3.13-slim
           - target: x86_64-unknown-linux-musl
             host: blacksmith-4vcpu-ubuntu-2404
-            container: python:3.13-alpine
+            image: python:3.13-alpine
           - target: aarch64-unknown-linux-musl
             host: blacksmith-4vcpu-ubuntu-2404-arm
-            container: python:3.13-alpine
+            image: python:3.13-alpine
     runs-on: ${{ matrix.host }}
-    container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
-        if: ${{ !matrix.container }}
+        if: ${{ !matrix.image }}
         with:
           python-version: '3.13'
       - uses: actions/download-artifact@v8
@@ -331,10 +342,17 @@ jobs:
       # Tests must run from the repo root: with python/ as cwd, the source
       # anydoc/ package dir shadows the installed compiled module.
       - name: Install wheel and run tests
-        if: ${{ !matrix.macos_x64 }}
+        if: ${{ !matrix.image && !matrix.macos_x64 }}
         run: |
           python -m pip install --no-index --find-links dist firecrawl-anydoc
           python -m unittest discover -s python/tests
+      - name: Install wheel and run tests in container
+        if: ${{ matrix.image }}
+        run: >
+          docker run --rm -v ${{ github.workspace }}:/build -w /build
+          ${{ matrix.image }} sh -c
+          "pip install --no-index --find-links dist firecrawl-anydoc &&
+          python -m unittest discover -s python/tests"
       # setup-python's macOS builds are universal2 and launch as arm64 on Apple
       # Silicon, where pip refuses x86_64 wheels; arch -x86_64 forces the x64
       # slice so pip and the tests both run as x86_64 under Rosetta.
