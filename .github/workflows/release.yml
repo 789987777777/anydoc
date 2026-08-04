@@ -15,8 +15,31 @@ env:
   MACOSX_DEPLOYMENT_TARGET: '10.13'
 
 jobs:
+  # The version lives in three manifests plus the generated Node loader.
+  # Nothing builds or publishes until the tag and all four agree.
+  versions:
+    name: versions agree
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          fail() { echo "::error::$1"; exit 1; }
+          crate=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          wheel=$(python3 -c 'import tomllib; print(tomllib.load(open("python/Cargo.toml", "rb"))["package"]["version"])')
+          npm=$(python3 -c 'import json; print(json.load(open("node/package.json"))["version"])')
+          [ "$wheel" = "$crate" ] || fail "python/Cargo.toml is $wheel but Cargo.toml is $crate"
+          [ "$npm" = "$crate" ] || fail "node/package.json is $npm but Cargo.toml is $crate"
+          # The loader embeds the version in its package checks: regenerate
+          # it (`npm run build`) when bumping.
+          grep -qF "!== '$crate'" node/index.js || fail "node/index.js was generated for another version than $crate"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            [ "${{ github.ref_name }}" = "v$crate" ] || fail "tag ${{ github.ref_name }} but manifests say $crate"
+          fi
+          echo "all $crate"
+
   crate:
     name: crates.io
+    needs: versions
     runs-on: blacksmith-8vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v7
@@ -40,6 +63,7 @@ jobs:
   # the addon loads on older distros; musl targets link through cargo-zigbuild.
   build:
     name: build ${{ matrix.settings.target }}
+    needs: versions
     strategy:
       fail-fast: false
       matrix:
@@ -192,6 +216,7 @@ jobs:
   # build as musllinux_1_2.
   wheel:
     name: wheel ${{ matrix.settings.target }}
+    needs: versions
     strategy:
       fail-fast: false
       matrix:
@@ -230,6 +255,7 @@ jobs:
 
   sdist:
     name: sdist
+    needs: versions
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v7
