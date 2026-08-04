@@ -46,11 +46,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # Skip when the version is already live, so a partially failed release
-      # can be re-tagged and re-run without this job going red.
+      # can be re-tagged and re-run without this job going red. Probes the
+      # sparse index, which unlike the API needs no User-Agent.
       - name: Publish
         run: |
           version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "anydoc") | .version')
-          if curl -fsS "https://crates.io/api/v1/crates/anydoc/$version" > /dev/null; then
+          if curl -fsS https://index.crates.io/an/yd/anydoc | grep -qF "\"vers\":\"$version\""; then
             echo "anydoc $version is already on crates.io, skipping"
           else
             cargo publish --locked
@@ -176,7 +177,8 @@ jobs:
   npm:
     name: npmjs.com
     needs: test
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # npm provenance is only accepted from GitHub-hosted runners.
+    runs-on: ubuntu-latest
     permissions:
       # GitHub release created by `napi prepublish`
       contents: write
@@ -282,6 +284,10 @@ jobs:
           - host: blacksmith-6vcpu-macos-latest
             target: x86_64-apple-darwin
             architecture: x64
+            # setup-python's macOS builds are universal2 and launch as arm64
+            # on Apple silicon, where pip then rejects x86_64 wheels. Force
+            # the x86_64 slice through Rosetta.
+            exec: arch -x86_64
           - host: blacksmith-4vcpu-windows-2025
             target: x86_64-pc-windows-msvc
             architecture: x64
@@ -314,8 +320,8 @@ jobs:
         if: ${{ !matrix.settings.image }}
         shell: bash
         run: |
-          pip install --no-index --find-links wheels firecrawl-anydoc
-          python -m unittest discover -s python/tests
+          ${{ matrix.settings.exec }} pip install --no-index --find-links wheels firecrawl-anydoc
+          ${{ matrix.settings.exec }} python -m unittest discover -s python/tests
       - name: Test in container
         if: ${{ matrix.settings.image }}
         run: >
