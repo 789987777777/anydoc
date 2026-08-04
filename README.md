@@ -7,7 +7,7 @@
 
 Fast Rust library that converts documents (Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF) into clean GitHub-Flavored Markdown. Includes bindings for [Node.js](node/README.md) and [Python](python/README.md).
 
-Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM-ready Markdown in single-digit milliseconds, with one consistent output no matter which format goes in. If you'd rather not run it yourself, the hosted [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse) offers the same conversion as an API, with OCR models on top for scanned documents.
+Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM-ready Markdown in single-digit milliseconds, with one consistent output no matter which format goes in. It powers [Firecrawl Parse](https://firecrawl.dev/parse), so if you'd rather not run it yourself, the hosted API gives you the same conversion plus our OCR models for the scanned pages anydoc can't read on its own.
 
 ## Features
 
@@ -18,7 +18,6 @@ Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM
 - **Fast.** Pure Rust, no ML models, no external services. Median conversion time is under 5ms per document.
 - **Bindings that stay out of the way.** Node.js conversion runs on the libuv thread pool and never blocks the event loop; Python releases the GIL so other threads keep running. TypeScript types and Python stubs ship with the packages.
 - **PDF support built in.** Text-based PDFs convert locally through [pdf-inspector](https://github.com/firecrawl/pdf-inspector), no OCR service required.
-- **Powers Firecrawl [Parse](https://firecrawl.dev/parse).** The same converter runs behind Firecrawl's hosted parsing API, which brings in our OCR models when a document needs them.
 
 ## Supported formats
 
@@ -33,7 +32,7 @@ Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM
 | CSV              | `.csv`                                                     |
 | PDF              | `.pdf`                                                     |
 
-PDFs take a shortcut: [pdf-inspector](https://github.com/firecrawl/pdf-inspector) emits Markdown directly, so use `to_markdown` / `to_markdown_bytes` for them rather than `to_document`. Scanned and image-only PDFs need OCR, so anydoc returns an unsupported error for them; route those to Firecrawl's hosted [/parse endpoint](https://docs.firecrawl.dev/api-reference/endpoint/parse), which OCRs them and returns the same Markdown.
+PDFs take a shortcut: [pdf-inspector](https://github.com/firecrawl/pdf-inspector) emits Markdown directly, so use `to_markdown` / `to_markdown_bytes` for them rather than `to_document`. Scanned and image-only PDFs need OCR, so anydoc returns an unsupported error for them; route those to [Firecrawl Parse](https://docs.firecrawl.dev/api-reference/endpoint/parse), which OCRs them and returns the same Markdown.
 
 ## Benchmark
 
