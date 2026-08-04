@@ -18,7 +18,7 @@ Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM
 - **Fast.** Pure Rust, no ML models, no external services. Median conversion time is under 5ms per document.
 - **Bindings that stay out of the way.** Node.js conversion runs on the libuv thread pool and never blocks the event loop; Python releases the GIL so other threads keep running. TypeScript types and Python stubs ship with the packages.
 - **PDF support built in.** Text-based PDFs convert locally through [pdf-inspector](https://github.com/firecrawl/pdf-inspector), no OCR service required.
-- **Powers Firecrawl [Parse](https://firecrawl.dev/parse)** Document parsing API from Firecrawl that includes OCR when needed.
+- **Powers Firecrawl [Parse](https://firecrawl.dev/parse).** Document parsing API from Firecrawl that includes OCR when needed.
 
 ## Supported formats
 
