@@ -16,6 +16,7 @@ use crate::package::relationships::{
 use crate::package::xml::{Element, ns, parse_xml};
 use crate::package::{Package, archive::probe_ole, path};
 use crate::shared::assets::AssetSink;
+use crate::shared::delta::rebase_emphasis;
 use crate::shared::fields::classify_rel_target;
 use crate::shared::list::{ListEntry, ListKey, MarkerKind, flush_list};
 use crate::shared::text::clean_text;
@@ -420,10 +421,12 @@ fn push_title_heading(
         if let Some(ppr) = ppr {
             props = props.merge(cascade::paragraph_props(ppr));
         }
-        let para = parse_para_inlines(p, ctx, props.delta.resolve());
+        let base = props.delta.resolve();
+        let mut para = parse_para_inlines(p, ctx, base);
         if inlines_are_empty(&para) {
             continue;
         }
+        rebase_emphasis(&mut para, base);
         if !inlines.is_empty() {
             inlines.push(Inline::LineBreak);
         }
