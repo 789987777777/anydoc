@@ -224,7 +224,7 @@ match anydoc::to_markdown(path) {
 | `MissingPart`   | A part required for any meaningful output is absent                 |
 | `Io`            | The file could not be read, from `to_markdown` only                 |
 
-Node and wasm publish the variant name on `error.code`; Python raises `anydoc.ConvertError`, or `OSError` when the file cannot be read.
+Node and wasm publish the variant name on `error.code`; Python raises one `anydoc.ConvertError` subclass per variant, or `OSError` when the file cannot be read.
 
 ## How it works
 
