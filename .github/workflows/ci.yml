@@ -66,9 +66,6 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
           components: clippy
-      # The rust job's workspace clippy covers this crate on the host target;
-      # this job lints and smoke tests the wasm target that Pages and the
-      # @firecrawl/anydoc-wasm npm package ship.
       - uses: Swatinem/rust-cache@v2
         with:
           key: wasm32-unknown-unknown
