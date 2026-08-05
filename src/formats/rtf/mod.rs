@@ -9,6 +9,7 @@ mod tables;
 
 use crate::error::ConvertError;
 use crate::model::{Block, Document, Inline, Note, NoteKind, Style, inlines_are_empty};
+use crate::shared::delta::rebase_emphasis;
 use crate::shared::fields::field_result;
 use crate::shared::list::{ListEntry, ListKey, MarkerKind, flush_list};
 use crate::shared::text::clean_text;
@@ -64,6 +65,8 @@ struct CharState {
     ls: Option<i32>,
     legacy_list: Option<MarkerKind>,
     outline: Option<u8>,
+    /// Emphasis the paragraph style itself carries, subtracted from headings.
+    style_base: Style,
     suppress: bool,
     capture: Capture,
     note: Option<NoteKind>,
@@ -81,6 +84,7 @@ impl Default for CharState {
             ls: None,
             legacy_list: None,
             outline: None,
+            style_base: Style::PLAIN,
             suppress: false,
             capture: Capture::None,
             note: None,
@@ -553,6 +557,7 @@ impl<'a> Parser<'a> {
                     self.flush_pending();
                     self.state.outline = def.outline;
                     self.state.style = def.delta.apply(self.state.style);
+                    self.state.style_base = self.state.style;
                 }
             }
             "par" | "sect" => {
@@ -571,6 +576,7 @@ impl<'a> Parser<'a> {
                 self.state.ls = None;
                 self.state.legacy_list = None;
                 self.state.outline = None;
+                self.state.style_base = Style::PLAIN;
             }
             "line" | "lbr" => {
                 self.flush_pending();
@@ -885,6 +891,7 @@ impl<'a> Parser<'a> {
         if let Some(level) = self.state.outline {
             self.flush_list();
             let mut content = inlines;
+            rebase_emphasis(&mut content, self.state.style_base);
             if let Some((key, _, number, label)) = &entry
                 && key.marker.ordered()
             {
