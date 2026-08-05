@@ -6,9 +6,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![skills.sh](https://skills.sh/b/firecrawl/anydoc)](https://skills.sh/firecrawl/anydoc)
 
-Fast Rust library that converts documents (Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF) into clean GitHub-Flavored Markdown. Includes bindings for [Node.js](node/README.md) and [Python](python/README.md).
+Fast Rust library that converts documents (Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, and PDF) into clean GitHub-Flavored Markdown. Includes bindings for [Node.js](node/README.md), [Python](python/README.md), and the [browser](wasm/README.md) (WebAssembly).
 
 Built by [Firecrawl](https://firecrawl.dev) to turn any office document into LLM-ready Markdown in single-digit milliseconds, with one consistent output no matter which format goes in. It powers [Firecrawl Parse](https://firecrawl.dev/parse), so if you'd rather not run it yourself, the hosted API gives you the same conversion plus our OCR models for the scanned pages anydoc can't read on its own.
+
+**[Try it in your browser](https://firecrawl.github.io/anydoc/)**: the demo page runs the library as WebAssembly, so files are converted locally and never leave your machine.
 
 ## Quick start
 
@@ -79,6 +81,29 @@ document = anydoc.to_document(data)
 ```
 
 > Full API reference: [python/README.md](python/README.md)
+
+### Browser (WebAssembly)
+
+```bash
+npm install @firecrawl/anydoc-wasm
+```
+
+```js
+import init, { toMarkdownBytes, toDocument } from '@firecrawl/anydoc-wasm';
+
+await init();
+
+// From bytes, with the format detected from the content:
+const markdown = toMarkdownBytes(bytes);
+
+// Or name it, which signature-less formats (CSV) need:
+const fromCsv = toMarkdownBytes(bytes, 'csv');
+
+// Or stop at the document model, which also carries embedded assets:
+const document = toDocument(bytes);
+```
+
+> Full API reference: [wasm/README.md](wasm/README.md)
 
 ### Rust
 
@@ -200,6 +225,7 @@ Because every format funnels through the same document model and serializer, out
 cargo test
 cd node && npm install && npm run build && npm test
 cd python && pip install maturin && maturin develop && python -m unittest discover -s tests
+wasm-pack build wasm --release --target web --scope firecrawl && node --test wasm/test.mjs  # see wasm/README.md
 ```
 
 A committed fixture corpus under `tests/fixtures/` is snapshot-tested, `tests/robustness.rs` mutation-tests every fixture, and `fuzz/` carries cargo-fuzz targets per format. The speed and quality benchmark lives in [`bench/`](bench/README.md).
