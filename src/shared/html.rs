@@ -13,6 +13,7 @@ use crate::model::{
 };
 use crate::package::xml::{Element, Node};
 use crate::shared::delta::{StyleDelta, rebase_emphasis};
+use crate::shared::header::resolve_header_rows;
 use crate::shared::text::{clean_text, collapse_ws};
 use std::collections::HashMap;
 
@@ -676,7 +677,7 @@ impl Builder<'_> {
         if table.grid.is_empty() {
             return Ok(None);
         }
-        table.header_rows = header_rows.min(table.grid.len());
+        table.header_rows = resolve_header_rows(&table, header_rows);
         Ok(Some(Block::Table(table)))
     }
 }

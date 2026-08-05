@@ -11,6 +11,7 @@ use crate::package::relationships::{RelTarget, Relationships, TargetMode, rel_ta
 use crate::package::xml::{Element, ns};
 use crate::shared::delta::rebase_emphasis;
 use crate::shared::fields::{FieldFrame, field_result};
+use crate::shared::header::resolve_header_rows;
 use crate::shared::list::{ListEntry, ListKey, flush_list};
 use crate::shared::text::{clean_text, is_xml_space};
 use std::cell::RefCell;
@@ -770,7 +771,7 @@ pub(super) fn parse_table(tbl: &Element, ctx: &Ctx) -> Result<Vec<Block>, Conver
     if table.grid.is_empty() {
         return Ok(Vec::new());
     }
-    table.header_rows = header_rows;
+    table.header_rows = resolve_header_rows(&table, header_rows);
     Ok(vec![Block::Table(table)])
 }
 
