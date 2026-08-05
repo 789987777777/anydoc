@@ -199,6 +199,33 @@ Format::from_path(Path::new("report.odt")); // Some(Format::Odt)
 
 The same three functions exist in Node (`formatFromBytes`, ...) and Python (`anydoc.format_from_bytes`, ...).
 
+## Errors
+
+A conversion returns `Err` only when no meaningful Markdown could come out of the file. `ConvertError` names what went wrong:
+
+```rust
+match anydoc::to_markdown(path) {
+    Ok(markdown) => Some(markdown),
+    // No document comes out of these, so record the file and take the next one.
+    Err(error @ (ConvertError::Encrypted | ConvertError::Unsupported(_))) => {
+        unconverted.push((path, error));
+        None
+    }
+    Err(error) => return Err(error),
+}
+```
+
+| Variant         | Meaning                                                             |
+| --------------- | ------------------------------------------------------------------- |
+| `Unsupported`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `Malformed`     | Structurally unusable: no meaningful content could be extracted     |
+| `Encrypted`     | Encrypted or password-protected                                     |
+| `ResourceLimit` | Crossed a fixed safety limit (decompression, nesting, node count)   |
+| `MissingPart`   | A part required for any meaningful output is absent                 |
+| `Io`            | The file could not be read, from `to_markdown` only                 |
+
+Node and wasm publish the variant name on `error.code`; Python raises `anydoc.ConvertError`, or `OSError` when the file cannot be read.
+
 ## How it works
 
 ```

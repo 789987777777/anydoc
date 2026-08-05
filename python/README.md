@@ -44,6 +44,27 @@ markdown = anydoc.to_markdown_bytes(data, "csv")
 document = anydoc.to_document(data)
 ```
 
+## Errors
+
+A conversion raises only when no meaningful Markdown could come out of the file. The exception type names what went wrong:
+
+```python
+try:
+    return anydoc.to_markdown(path)
+except anydoc.ConvertError as error:
+    # No document comes out of these, so record the file and take the next one.
+    unconverted.append((path, str(error)))
+    return None
+```
+
+| Exception             | Raised when                                         |
+| --------------------- | --------------------------------------------------- |
+| `anydoc.ConvertError` | No meaningful content could be converted            |
+| `OSError`             | The file could not be read, from `to_markdown` only |
+| `ValueError`          | The `format` argument names no supported format     |
+
+`ConvertError` covers an unknown or unconvertible format (an image-only PDF), structurally unusable content, encryption, an absent required part, and fixed safety limits (decompression, nesting, node count). `str(error)` carries the detail, naming the package part at fault where the format identifies one.
+
 ## Format detection
 
 The format is read from the file content, using the marker its specification designates: the PDF header, the RTF open group, OLE stream names, the ZIP package mimetype and content types. CSV has no such marker, so detection returns `None` for it and the extension, or an explicit format, names it instead.
