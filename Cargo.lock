@@ -127,6 +127,7 @@ name = "anydoc-wasm"
 version = "0.1.5"
 dependencies = [
  "anydoc",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "serde_bytes",

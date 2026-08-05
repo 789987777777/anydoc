@@ -39,6 +39,7 @@
   "napi": {
     "binaryName": "anydoc",
     "packageName": "@firecrawl/anydoc",
+    "dtsHeaderFile": "dts-header.d.ts",
     "targets": [
       "x86_64-apple-darwin",
       "aarch64-apple-darwin",
