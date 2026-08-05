@@ -11,7 +11,7 @@
     <meta property="og:title" content="anydoc by Firecrawl" />
     <meta
       property="og:description"
-      content="A fast Rust library that turns any office document into clean GitHub-Flavored Markdown. Try it here: the conversion runs as WebAssembly, in your browser."
+      content="An open source Rust library that turns any office document into clean GitHub-Flavored Markdown, with bindings for Node.js, Python, and the browser. Try it here: the conversion runs as WebAssembly, in your browser."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://firecrawl.github.io/anydoc/" />
@@ -409,9 +409,56 @@
         color: var(--text);
         font-weight: 450;
       }
+
+      /* Label on the left, one fact on the right, hairline between rows. */
+      .facts {
+        display: grid;
+        grid-template-columns: 108px 1fr;
+        margin: 0;
+      }
+      .facts dt,
+      .facts dd {
+        padding: 12px 0;
+        border-top: 1px solid var(--border-faint);
+      }
+      .facts dt:first-of-type,
+      .facts dt:first-of-type + dd {
+        padding-top: 0;
+        border-top: 0;
+      }
+      .facts dt {
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 450;
+      }
+      .facts dd {
+        margin: 0;
+        color: var(--alpha-72);
+        font-size: 14px;
+        line-height: 20px;
+        letter-spacing: 0.14px;
+        max-width: 68ch;
+      }
+      .facts dd strong {
+        color: var(--text);
+        font-weight: 450;
+      }
+      @media (max-width: 575px) {
+        .facts {
+          grid-template-columns: 1fr;
+        }
+        .facts dt {
+          padding-bottom: 2px;
+        }
+        .facts dd {
+          padding-top: 0;
+          border-top: 0;
+        }
+      }
+
       .installs {
         display: grid;
-        grid-template-columns: 120px 1fr;
+        grid-template-columns: 108px 1fr;
         gap: 8px 16px;
         margin: 0;
         align-items: baseline;
@@ -478,7 +525,9 @@
             />
             <img src="assets/logo.svg" alt="" width="15" height="22" />
           </picture>
-          <span class="wordmark">anydoc <span class="by">by Firecrawl</span></span>
+          <span class="wordmark"
+            >anydoc <span class="by">by Firecrawl</span></span
+          >
         </a>
         <nav>
           <a href="https://github.com/firecrawl/anydoc">GitHub</a>
@@ -541,11 +590,10 @@
         <section class="band">
           <h1>Any document in.<br /><span class="heat">Markdown out.</span></h1>
           <p class="lede">
-            anydoc is a Rust library that converts Word, PowerPoint, Excel,
-            OpenDocument, RTF, EPUB, CSV, and PDF files to GitHub-Flavored
-            Markdown. This page runs it as WebAssembly,
-            <strong>entirely in your browser</strong>: files never leave your
-            machine.
+            Open source Rust library that converts Word, PowerPoint, Excel,
+            PDF, and more to GitHub-Flavored Markdown. Node, Python, browser,
+            and CLI bindings. It runs here in your browser:
+            <strong>files never leave your machine</strong>.
           </p>
           <ul class="badges">
             <li>
@@ -586,7 +634,7 @@
               >Loading the converter&hellip;</span
             >
             <span class="small" id="drop-hint"
-              >about 2&nbsp;MB of WebAssembly, one-time</span
+              >a few MB of WebAssembly, downloaded once</span
             >
           </button>
           <input type="file" id="file" hidden />
@@ -611,23 +659,51 @@
 
         <section class="band">
           <h2>About</h2>
-          <p class="prose">
-            Every format parses into one shared document model and renders
-            through one Markdown serializer, so headings, lists, tables with
-            merged cells, footnotes, and escaping come out the same whether the
-            input was a <strong>.doc</strong> from 2003 or a
-            <strong>.pptx</strong> from yesterday. The format is read from the
-            bytes, not the extension, so mislabeled files still convert.
-          </p>
-          <p class="prose">
-            It is pure Rust with no ML models and no services: median conversion
-            is under 5&nbsp;ms, and across
-            <a href="https://github.com/firecrawl/anydoc#benchmark">a benchmark</a>
-            of 100 documents it was the only one of seven converters to handle
-            all fourteen formats. Text-based PDFs go through
-            <a href="https://github.com/firecrawl/pdf-inspector">pdf-inspector</a
-            >, locally, with no OCR service involved.
-          </p>
+          <dl class="facts">
+            <dt>One model</dt>
+            <dd>
+              <strong>Every format parses into the same document model</strong>
+              and renders through the same Markdown serializer, so headings,
+              nested lists, merged table cells, and footnotes come out the same
+              from a .doc written in 2003 as from yesterday's .pptx.
+            </dd>
+
+            <dt>Detection</dt>
+            <dd>
+              The format is read from the bytes, not the extension, so
+              mislabeled files still convert.
+            </dd>
+
+            <dt>Speed</dt>
+            <dd>
+              Pure Rust, no ML models, no services: median conversion is under
+              5&nbsp;ms. Of seven converters
+              <a href="https://github.com/firecrawl/anydoc#benchmark"
+                >benchmarked</a
+              >
+              on 100 documents, anydoc was the only one to handle all fourteen
+              formats.
+            </dd>
+
+            <dt>PDF</dt>
+            <dd>
+              Text-based PDFs convert locally through
+              <a href="https://github.com/firecrawl/pdf-inspector"
+                >pdf-inspector</a
+              >. Scanned pages need OCR, which
+              <a href="https://firecrawl.dev/parse">Firecrawl Parse</a> adds on
+              top of this same conversion.
+            </dd>
+
+            <dt>This page</dt>
+            <dd>
+              The converter above is
+              <a href="https://www.npmjs.com/package/@firecrawl/anydoc-wasm"
+                >@firecrawl/anydoc-wasm</a
+              >, anydoc compiled to WebAssembly. Drop it into your own app the
+              same way.
+            </dd>
+          </dl>
         </section>
 
         <section class="band">
@@ -644,14 +720,19 @@
               <span class="dollar">$</span> npm install @firecrawl/anydoc-wasm
             </dd>
             <dt>CLI</dt>
-            <dd><span class="dollar">$</span> npx @firecrawl/anydoc report.docx</dd>
+            <dd>
+              <span class="dollar">$</span> npx @firecrawl/anydoc report.docx
+            </dd>
             <dt>Agent skill</dt>
-            <dd><span class="dollar">$</span> npx skills add firecrawl/anydoc</dd>
+            <dd>
+              <span class="dollar">$</span> npx skills add firecrawl/anydoc
+            </dd>
           </dl>
           <p class="prose" style="margin-top: 16px">
             The API is the same everywhere: convert from a path or from bytes,
             or stop at the document model and keep the embedded assets. See the
-            <a href="https://github.com/firecrawl/anydoc#quick-start">README</a>.
+            <a href="https://github.com/firecrawl/anydoc#quick-start">README</a
+            >.
           </p>
         </section>
       </main>
