@@ -163,26 +163,29 @@ fn parse_clx(
     fc: usize,
     lcb: usize,
 ) -> Result<(Vec<Piece>, Vec<Vec<u8>>), ConvertError> {
-    let clx =
-        table.get(fc..fc + lcb).ok_or_else(|| ConvertError::malformed("Clx out of bounds"))?;
+    let clx = table
+        .get(fc..)
+        .and_then(|rest| rest.get(..lcb))
+        .ok_or_else(|| ConvertError::malformed("Clx out of bounds"))?;
     let mut prcs: Vec<Vec<u8>> = Vec::new();
     let mut pos = 0;
     loop {
-        match clx.get(pos) {
+        let rest = clx.get(pos..).ok_or_else(|| ConvertError::malformed("malformed Clx"))?;
+        match rest.first() {
             Some(1) => {
-                let cb = get_u16(clx, pos + 1).ok_or_else(|| ConvertError::malformed("bad Prc"))?
-                    as usize;
-                if let Some(grpprl) = clx.get(pos + 3..pos + 3 + cb) {
+                let cb =
+                    get_u16(rest, 1).ok_or_else(|| ConvertError::malformed("bad Prc"))? as usize;
+                if let Some(grpprl) = rest.get(3..).and_then(|payload| payload.get(..cb)) {
                     prcs.push(grpprl.to_vec());
                 }
                 pos += 3 + cb;
             }
             Some(2) => {
-                let lcb_plc = get_u32(clx, pos + 1)
-                    .ok_or_else(|| ConvertError::malformed("bad Pcdt"))?
-                    as usize;
-                let plc = clx
-                    .get(pos + 5..pos + 5 + lcb_plc)
+                let lcb_plc =
+                    get_u32(rest, 1).ok_or_else(|| ConvertError::malformed("bad Pcdt"))? as usize;
+                let plc = rest
+                    .get(5..)
+                    .and_then(|payload| payload.get(..lcb_plc))
                     .ok_or_else(|| ConvertError::malformed("PlcPcd out of bounds"))?;
                 let pieces = parse_plc_pcd(plc, &mut prcs)?;
                 return Ok((pieces, prcs));
@@ -340,7 +343,7 @@ fn extract_text(
         }
         let len = piece.cp_end.saturating_sub(piece.cp_start).min(total_cp - cp);
         if piece.compressed {
-            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len) else {
+            let Some(bytes) = word_doc.get(piece.fc..).and_then(|rest| rest.get(..len)) else {
                 continue;
             };
             // Byte-accurate accounting: in a compressed piece each CP is one
@@ -361,7 +364,10 @@ fn extract_text(
                 i += seq;
             }
         } else {
-            let Some(bytes) = word_doc.get(piece.fc..piece.fc + len * 2) else {
+            let Some(byte_len) = len.checked_mul(2) else {
+                continue;
+            };
+            let Some(bytes) = word_doc.get(piece.fc..).and_then(|rest| rest.get(..byte_len)) else {
                 continue;
             };
             let units: Vec<u16> =
@@ -446,7 +452,10 @@ fn parse_fkps(
             continue;
         };
         let pn = (pn_raw & 0x3F_FFFF) as usize;
-        let Some(page) = word_doc.get(pn * 512..pn * 512 + 512) else {
+        let Some(page_off) = pn.checked_mul(512) else {
+            continue;
+        };
+        let Some(page) = word_doc.get(page_off..).and_then(|rest| rest.get(..512)) else {
             continue;
         };
         parse_fkp_page(page, kind, data, &mut runs);
@@ -477,7 +486,10 @@ fn parse_fkp_page(page: &[u8], kind: FkpKind, data: &[u8], runs: &mut Vec<Run>) 
             match kind {
                 FkpKind::Chpx => {
                     if let Some(&cb) = page.get(off)
-                        && let Some(grpprl) = page.get(off + 1..off + 1 + cb as usize)
+                        && let Some(grpprl) = page
+                            .get(off..)
+                            .and_then(|rest| rest.get(1..))
+                            .and_then(|rest| rest.get(..cb as usize))
                     {
                         props.chpx = grpprl.to_vec();
                     }
@@ -490,7 +502,7 @@ fn parse_fkp_page(page: &[u8], kind: FkpKind, data: &[u8], runs: &mut Vec<Run>) 
                         } else {
                             (off + 1, cb as usize * 2 - 1)
                         };
-                        if let Some(grpprl) = page.get(start..start + len)
+                        if let Some(grpprl) = page.get(start..).and_then(|rest| rest.get(..len))
                             && grpprl.len() >= 2
                         {
                             props.istd = u16::from_le_bytes([grpprl[0], grpprl[1]]);

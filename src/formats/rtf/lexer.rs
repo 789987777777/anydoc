@@ -54,8 +54,9 @@ impl<'a> Lexer<'a> {
                 return Some(Token::Word { name: "par", param: None });
             }
             if b == b'\'' {
-                let hi = (*self.bytes.get(self.pos)? as char).to_digit(16);
-                let lo = (*self.bytes.get(self.pos + 1)? as char).to_digit(16);
+                let pair = self.bytes.get(self.pos..)?.get(..2)?;
+                let hi = (pair[0] as char).to_digit(16);
+                let lo = (pair[1] as char).to_digit(16);
                 return match (hi, lo) {
                     (Some(hi), Some(lo)) => {
                         self.pos += 2;
@@ -98,7 +99,7 @@ impl<'a> Lexer<'a> {
         }
         if name == "bin" {
             let n = param.unwrap_or(0).max(0) as usize;
-            let end = (self.pos + n).min(self.bytes.len());
+            let end = self.pos.saturating_add(n).min(self.bytes.len());
             let payload = &self.bytes[self.pos..end];
             self.pos = end;
             return Some(Token::Bin(payload));

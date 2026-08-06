@@ -73,7 +73,7 @@ pub fn parse(word_doc: &[u8], table: &[u8]) -> Stylesheet {
         if cb_std == 0 {
             continue;
         }
-        let Some(record) = stsh.get(pos..pos + cb_std as usize) else {
+        let Some(record) = stsh.get(pos..).and_then(|rest| rest.get(..cb_std as usize)) else {
             break;
         };
         pos += cb_std as usize;
@@ -104,14 +104,17 @@ fn parse_std(record: &[u8], cb_std_base: usize) -> Option<Std> {
     let name_off = cb_std_base.max(10);
     let name_len = get_u16(record, name_off)? as usize;
     // Unicode name: length prefix + UTF-16 chars + terminator.
+    let name_bytes = name_len.checked_mul(2)?;
     let name_units: Vec<u16> = record
-        .get(name_off + 2..name_off + 2 + name_len * 2)
+        .get(name_off..)
+        .and_then(|rest| rest.get(2..))
+        .and_then(|rest| rest.get(..name_bytes))
         .unwrap_or_default()
         .chunks_exact(2)
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     let name = String::from_utf16_lossy(&name_units);
-    let mut upx_pos = name_off + 2 + name_len * 2 + 2;
+    let mut upx_pos = name_off.checked_add(4)?.checked_add(name_bytes)?;
 
     let mut upx: Vec<&[u8]> = Vec::new();
     for _ in 0..cupx {
@@ -119,7 +122,7 @@ fn parse_std(record: &[u8], cb_std_base: usize) -> Option<Std> {
             upx_pos += 1;
         }
         let cb = get_u16(record, upx_pos)? as usize;
-        let payload = record.get(upx_pos + 2..upx_pos + 2 + cb)?;
+        let payload = record.get(upx_pos..)?.get(2..)?.get(..cb)?;
         upx.push(payload);
         upx_pos += 2 + cb;
     }

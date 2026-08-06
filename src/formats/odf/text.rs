@@ -482,11 +482,24 @@ fn classify_href(href: &str) -> Option<LinkTarget> {
         if target.is_empty() {
             return None;
         }
-        return Some(LinkTarget::Anchor(target.to_string()));
+        return Some(LinkTarget::Anchor(crate::package::path::decode_fragment(target)));
     }
     if crate::shared::uri::is_absolute_uri(href) {
         Some(LinkTarget::External(href.to_string()))
     } else {
         Some(LinkTarget::Relative(href.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn internal_href_fragments_are_percent_decoded() {
+        assert_eq!(
+            classify_href("#caf%C3%A9%20menu"),
+            Some(LinkTarget::Anchor("café menu".into()))
+        );
     }
 }
