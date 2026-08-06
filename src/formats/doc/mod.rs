@@ -16,6 +16,7 @@ use crate::model::{
 use crate::package::limits;
 use crate::shared::assets::AssetSink;
 use crate::shared::binary::{get_u16, get_u32, read_ole_stream};
+use crate::shared::blockstyle::StyledRun;
 use crate::shared::delta::rebase_emphasis;
 use crate::shared::fields::{FieldFrame, field_result};
 use crate::shared::grid::{CellProp, GridRow, build_edge_table};
@@ -682,7 +683,9 @@ impl Assembler {
     fn build_blocks(&self, lo: usize, hi: usize) -> Result<Vec<Block>, ConvertError> {
         let mut blocks: Vec<Block> = Vec::new();
         let mut list_run: Vec<ListEntry> = Vec::new();
+        let mut styled = StyledRun::default();
         let mut cell_blocks: Vec<Block> = Vec::new();
+        let mut cell_styled = StyledRun::default();
         let mut row: Vec<Vec<Block>> = Vec::new();
         let mut table_rows: Vec<DocRow> = Vec::new();
         let mut para = ParaBuilder::new();
@@ -702,6 +705,10 @@ impl Assembler {
                     let inlines = std::mem::replace(&mut para, ParaBuilder::new()).finish();
                     let is_cell_mark = c == '\u{7}';
                     if pap.effective.in_table.unwrap_or(false) || is_cell_mark {
+                        // A table is a hard boundary for top-level list and
+                        // styled runs, even while its rows are accumulated.
+                        styled.flush(&mut blocks);
+                        flush_list(&mut blocks, &mut list_run);
                         // Nested-table content (table depth > 1, inner
                         // cell/row terminators) flattens into the outer
                         // cell as paragraphs.
@@ -709,10 +716,14 @@ impl Assembler {
                             || pap.effective.inner_cell.unwrap_or(false)
                             || pap.effective.inner_ttp.unwrap_or(false);
                         if inner {
-                            if !inlines_are_empty(&inlines) {
-                                cell_blocks.push(Block::Paragraph(inlines));
-                            }
+                            self.emit_cell_paragraph(
+                                &pap,
+                                inlines,
+                                &mut cell_blocks,
+                                &mut cell_styled,
+                            );
                         } else if is_cell_mark && pap.effective.ttp.unwrap_or(false) {
+                            cell_styled.flush(&mut cell_blocks);
                             // Row end: the TTP mark's PAPX carries the TAP
                             // (boundaries, merge flags, header row).
                             if !row.is_empty() {
@@ -722,12 +733,21 @@ impl Assembler {
                                 });
                             }
                         } else if is_cell_mark {
-                            if !inlines_are_empty(&inlines) {
-                                cell_blocks.push(Block::Paragraph(inlines));
-                            }
+                            self.emit_cell_paragraph(
+                                &pap,
+                                inlines,
+                                &mut cell_blocks,
+                                &mut cell_styled,
+                            );
+                            cell_styled.flush(&mut cell_blocks);
                             row.push(std::mem::take(&mut cell_blocks));
-                        } else if !inlines_are_empty(&inlines) {
-                            cell_blocks.push(Block::Paragraph(inlines));
+                        } else {
+                            self.emit_cell_paragraph(
+                                &pap,
+                                inlines,
+                                &mut cell_blocks,
+                                &mut cell_styled,
+                            );
                         }
                     } else {
                         Self::flush_table(
@@ -736,7 +756,7 @@ impl Assembler {
                             &mut row,
                             &mut cell_blocks,
                         )?;
-                        self.emit_paragraph(&pap, inlines, &mut blocks, &mut list_run);
+                        self.emit_paragraph(&pap, inlines, &mut blocks, &mut list_run, &mut styled);
                     }
                 }
                 '\u{b}' => para.push_inline(Inline::LineBreak),
@@ -768,10 +788,14 @@ impl Assembler {
             i += 1;
         }
         let inlines = para.finish();
+        cell_styled.flush(&mut cell_blocks);
+        Self::flush_table(&mut blocks, &mut table_rows, &mut row, &mut cell_blocks)?;
         if !inlines_are_empty(&inlines) {
+            styled.flush(&mut blocks);
+            flush_list(&mut blocks, &mut list_run);
             blocks.push(Block::Paragraph(inlines));
         }
-        Self::flush_table(&mut blocks, &mut table_rows, &mut row, &mut cell_blocks)?;
+        styled.flush(&mut blocks);
         flush_list(&mut blocks, &mut list_run);
         Ok(blocks)
     }
@@ -822,14 +846,24 @@ impl Assembler {
         inlines: Vec<Inline>,
         blocks: &mut Vec<Block>,
         list_run: &mut Vec<ListEntry>,
+        styled: &mut StyledRun,
     ) {
+        let style = self.stylesheet.get(pap.istd);
+        // A styled container absorbs its blank paragraphs: they are the
+        // blank lines of a code block.
+        if let Some(block) = style.block {
+            flush_list(blocks, list_run);
+            styled.push(block, inlines, blocks);
+            return;
+        }
         if inlines_are_empty(&inlines) {
+            styled.flush(blocks);
             flush_list(blocks, list_run);
             return;
         }
-        let style = self.stylesheet.get(pap.istd);
         let heading = style.heading.or(pap.effective.outline.flatten());
         if let Some(level) = heading {
+            styled.flush(blocks);
             flush_list(blocks, list_run);
             let mut content = inlines;
             rebase_emphasis(&mut content, style.chp);
@@ -860,6 +894,7 @@ impl Assembler {
                 } else {
                     (0, None)
                 };
+                styled.flush(blocks);
                 list_run.push(ListEntry {
                     level: ilvl,
                     key: ListKey { instance: list.lsid as u64, marker },
@@ -871,8 +906,28 @@ impl Assembler {
             }
             // Marker "none": numbering suppressed, plain paragraph.
         }
+        styled.flush(blocks);
         flush_list(blocks, list_run);
         blocks.push(Block::Paragraph(inlines));
+    }
+
+    /// Emit one paragraph into the current table cell. Styled runs are
+    /// scoped to the cell and are flushed before ordinary cell content.
+    fn emit_cell_paragraph(
+        &self,
+        pap: &EffectivePap,
+        inlines: Vec<Inline>,
+        blocks: &mut Vec<Block>,
+        styled: &mut StyledRun,
+    ) {
+        if let Some(block) = self.stylesheet.get(pap.istd).block {
+            styled.push(block, inlines, blocks);
+        } else {
+            styled.flush(blocks);
+            if !inlines_are_empty(&inlines) {
+                blocks.push(Block::Paragraph(inlines));
+            }
+        }
     }
 
     /// Extract the inline picture whose PICF + OfficeArt data the character's

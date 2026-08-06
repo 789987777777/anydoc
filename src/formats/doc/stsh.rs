@@ -5,6 +5,7 @@
 use crate::formats::doc::sprm::{PapDelta, apply_pap_sprms, apply_style_chpx};
 use crate::model::Style;
 use crate::shared::binary::{get_u16, get_u32};
+use crate::shared::blockstyle::{self, BlockStyle};
 use std::collections::HashMap;
 
 const ISTD_NIL: u16 = 0x0FFF;
@@ -17,6 +18,8 @@ pub struct ResolvedStyle {
     pub pap: PapDelta,
     /// Heading level for built-in `heading N` styles.
     pub heading: Option<u8>,
+    /// The block container the style's name designates.
+    pub block: Option<BlockStyle>,
 }
 
 #[derive(Debug, Default)]
@@ -35,6 +38,8 @@ impl Stylesheet {
 struct Std {
     sti: u16,
     istd_base: u16,
+    /// The block container this style's name designates.
+    block: Option<BlockStyle>,
     /// Paragraph style: (papx grpprl incl. leading istd, chpx grpprl);
     /// character style: (empty, chpx grpprl).
     upx_papx: Vec<u8>,
@@ -99,6 +104,13 @@ fn parse_std(record: &[u8], cb_std_base: usize) -> Option<Std> {
     let name_off = cb_std_base.max(10);
     let name_len = get_u16(record, name_off)? as usize;
     // Unicode name: length prefix + UTF-16 chars + terminator.
+    let name_units: Vec<u16> = record
+        .get(name_off + 2..name_off + 2 + name_len * 2)
+        .unwrap_or_default()
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    let name = String::from_utf16_lossy(&name_units);
     let mut upx_pos = name_off + 2 + name_len * 2 + 2;
 
     let mut upx: Vec<&[u8]> = Vec::new();
@@ -121,7 +133,14 @@ fn parse_std(record: &[u8], cb_std_base: usize) -> Option<Std> {
     } else {
         (Vec::new(), upx.first().copied().unwrap_or_default().to_vec())
     };
-    Some(Std { sti, istd_base, upx_papx, upx_chpx, is_paragraph })
+    Some(Std {
+        sti,
+        istd_base,
+        block: blockstyle::from_style_name(&name),
+        upx_papx,
+        upx_chpx,
+        is_paragraph,
+    })
 }
 
 /// Resolve one style's `istdBase` chain, memoized across styles. Cycles
@@ -169,6 +188,7 @@ fn resolve(
         if let sti @ 1..=9 = std.sti {
             base.heading = Some(sti as u8);
         }
+        base.block = std.block.or(base.block);
         memo.insert(cur, base.clone());
     }
     base
@@ -179,7 +199,14 @@ mod tests {
     use super::*;
 
     fn style(sti: u16, istd_base: u16) -> Std {
-        Std { sti, istd_base, upx_papx: Vec::new(), upx_chpx: Vec::new(), is_paragraph: true }
+        Std {
+            sti,
+            istd_base,
+            block: None,
+            upx_papx: Vec::new(),
+            upx_chpx: Vec::new(),
+            is_paragraph: true,
+        }
     }
 
     #[test]

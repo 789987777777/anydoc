@@ -532,6 +532,12 @@ fn code_block_in_cell_uses_code_span() {
 }
 
 #[test]
+fn code_block_keeps_its_language_hint() {
+    let md = doc(vec![Block::CodeBlock { lang: Some("rust".into()), text: "fn main() {}".into() }]);
+    assert_eq!(md, "```rust\nfn main() {}\n```\n");
+}
+
+#[test]
 fn cell_edge_whitespace_is_trimmed() {
     // S10: cell padding from spreadsheets and CSV is layout, and the table's
     // own padding would swallow it anyway.
