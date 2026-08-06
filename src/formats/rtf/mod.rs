@@ -1045,6 +1045,24 @@ mod tests {
     }
 
     #[test]
+    fn backslash_before_a_line_break_breaks_the_paragraph() {
+        // The paragraph mark Cocoa's RTF writer emits instead of `\par`.
+        for src in
+            ["{\\rtf1 Alpha\\\nBeta\\\nGamma\\\n}", "{\\rtf1 Alpha\\\r\nBeta\\\rGamma\\\r\n}"]
+        {
+            let markdown = crate::to_markdown_bytes(src.as_bytes(), crate::Format::Rtf).unwrap();
+            assert_eq!(markdown, "Alpha\n\nBeta\n\nGamma\n", "source: {src:?}");
+        }
+    }
+
+    #[test]
+    fn body_text_before_a_table_stays_out_of_the_first_cell() {
+        let src = "{\\rtf1 Intro\\\n\\trowd\\cellx2000\\cellx4000 A\\cell B\\cell\\row}";
+        let markdown = crate::to_markdown_bytes(src.as_bytes(), crate::Format::Rtf).unwrap();
+        assert!(markdown.starts_with("Intro\n\n|"), "{markdown}");
+    }
+
+    #[test]
     fn pict_hex_payload_becomes_an_asset() {
         let doc = parse(br"{\rtf1 before {\pict\pngblip 89504e470d0a1a0a} after}").unwrap();
         assert_eq!(doc.assets.len(), 1, "assets: {:?}", doc.assets);
