@@ -94,6 +94,78 @@ fn trailing_delimiter_before_styled_run_escaped() {
 }
 
 #[test]
+fn delimiters_do_not_pair_across_run_seams() {
+    // Two lines each ending in a backtick must not form a code span (#45).
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a `"),
+        Inline::LineBreak,
+        Inline::plain("b `"),
+    ])]);
+    assert_eq!(md, "a \\`\\\nb `\n");
+    // Emphasis pairs across a hard break just as code spans do.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a *"),
+        Inline::LineBreak,
+        Inline::plain("b*"),
+    ])]);
+    assert_eq!(md, "a \\*\\\nb*\n");
+    // A raw backtick pairs with a later code span's fence.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a `"),
+        Inline::LineBreak,
+        styled("x", Style { code: true, ..Style::PLAIN }),
+    ])]);
+    assert_eq!(md, "a \\`\\\n`x`\n");
+}
+
+#[test]
+fn unresolved_link_fallback_counts_toward_seam_pairing() {
+    // The fallback text supplies the `]` that pairs with the earlier `[`.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("[click"),
+        Inline::LineBreak,
+        Inline::Link {
+            content: vec![Inline::plain("here]")],
+            target: LinkTarget::Anchor("nowhere".into()),
+        },
+        Inline::plain("(https://e.test)"),
+    ])]);
+    assert_eq!(md, "\\[click\\\nhere](https://e.test)\n");
+    // Same seam with an emphasis delimiter in the fallback.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a *"),
+        Inline::LineBreak,
+        Inline::Link {
+            content: vec![Inline::plain("b*")],
+            target: LinkTarget::Anchor("nowhere".into()),
+        },
+    ])]);
+    assert_eq!(md, "a \\*\\\nb*\n");
+}
+
+#[test]
+fn escaped_backtick_in_later_run_still_pairs() {
+    // A styled run's backtick is emitted as `\\``, yet still closes a span
+    // an earlier raw backtick opens: code spans ignore backslash escapes.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a `"),
+        Inline::LineBreak,
+        styled("x`y", BOLD),
+    ])]);
+    assert_eq!(md, "a \\`\\\n**x\\`y**\n");
+    // A whitespace-only code run loses its styling and emits no fence.
+    let md = doc(vec![Block::Paragraph(vec![
+        Inline::plain("a `"),
+        Inline::LineBreak,
+        Inline::Link {
+            content: vec![styled("  ", Style { code: true, ..Style::PLAIN }), Inline::plain("x")],
+            target: LinkTarget::External("https://e.test".into()),
+        },
+    ])]);
+    assert_eq!(md, "a `\\\n[  x](https://e.test)\n");
+}
+
+#[test]
 fn bold_trailing_space_moved_out() {
     let md = doc(vec![Block::Paragraph(vec![styled("bold ", BOLD), Inline::plain("plain")])]);
     assert_eq!(md, "**bold** plain\n");
