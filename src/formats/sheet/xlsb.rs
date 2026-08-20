@@ -4,6 +4,7 @@
 //! materialization, format resolution and date rendering are shared with
 //! the xlsx reader so both containers convert identically.
 
+use super::controls::read_vml_checkboxes;
 use super::xlsx::{
     CellFormat, MAX_COLS, MAX_ROWS, SHARED_STRINGS_REL, SheetContent, build_table, format_as_text,
     render_number, resolve_format, sibling_part_name,
@@ -79,7 +80,7 @@ pub(super) fn parse(pkg: &mut Package, wb_part: &str) -> Result<Document, Conver
     for (name, part) in &sheets {
         let content =
             pkg.optional_part(part)?.map(|bytes| read_sheet(&bytes, &shared, &xfs, date1904));
-        let content = match content {
+        let mut content = match content {
             Some(Ok(c)) => c,
             Some(Err(e)) if e.is_fatal() => return Err(e),
             Some(Err(e)) => {
@@ -93,6 +94,7 @@ pub(super) fn parse(pkg: &mut Package, wb_part: &str) -> Result<Document, Conver
                 continue;
             }
         };
+        content.checkboxes = read_vml_checkboxes(pkg, part)?;
         let Some(table) = build_table(content, &mut slots)? else {
             continue;
         };
@@ -582,6 +584,8 @@ mod tests {
         styles: Option<Vec<u8>>,
         shared: Option<Vec<u8>>,
         date1904: bool,
+        /// Further parts, verbatim: (name, body).
+        extra: Vec<(&'a str, Vec<u8>)>,
     }
 
     impl Wb<'_> {
@@ -632,6 +636,9 @@ mod tests {
             }
             if let Some(shared) = &self.shared {
                 add("xl/sharedStrings.bin", shared);
+            }
+            for (name, body) in &self.extra {
+                add(name, body);
             }
             zip.finish().unwrap().into_inner()
         }
@@ -860,5 +867,33 @@ mod tests {
         body.extend(real_cell(0, 0, 7.0));
         let doc = parse(&one_sheet(body).build()).unwrap();
         assert_eq!(texts(first_table(&doc)), vec![vec!["7"]]);
+    }
+
+    #[test]
+    fn form_control_checkboxes_come_from_the_vml_part() {
+        const VML_REL: &str =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing";
+        let rels = format!(
+            r#"<?xml version="1.0"?><Relationships xmlns="{PKG_RELS}"><Relationship Id="rId1" Type="{VML_REL}" Target="../drawings/vmlDrawing1.vml"/></Relationships>"#
+        );
+        let vml = r##"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:x="urn:schemas-microsoft-com:office:excel">
+            <v:shape id="_x0000_s1025" type="#_x0000_t201" style="position:absolute">
+              <v:textbox><div><font>Roof</font></div></v:textbox>
+              <x:ClientData ObjectType="Checkbox"><x:Anchor>1, 5, 0, 2, 2, 10, 1, 1</x:Anchor><x:Checked>1</x:Checked></x:ClientData>
+            </v:shape></xml>"##;
+        let mut body = row_hdr(0, false);
+        let mut p = cell(0, 0);
+        p.push(1);
+        body.extend(rec(BRT_CELL_BOOL, &p));
+        let wb = Wb {
+            sheets: vec![("S", 0, body)],
+            extra: vec![
+                ("xl/worksheets/_rels/sheet1.bin.rels", rels.into_bytes()),
+                ("xl/drawings/vmlDrawing1.vml", vml.as_bytes().to_vec()),
+            ],
+            ..Wb::default()
+        };
+        let doc = parse(&wb.build()).unwrap();
+        assert_eq!(texts(first_table(&doc)), vec![vec!["TRUE", "[x] Roof"]]);
     }
 }

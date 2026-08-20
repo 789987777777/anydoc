@@ -3,6 +3,7 @@
 //! merge regions. Rows, columns, and sheets the source hides are omitted,
 //! and merge regions are remapped onto the surviving grid.
 
+use super::controls::{Checkboxes, cell_inlines, read_vml_checkboxes};
 use super::numfmt::{DateParts, NumberFormat, Rendered, builtin_code};
 use super::{format_duration_days, format_float, format_time_of_day};
 use crate::error::ConvertError;
@@ -81,7 +82,8 @@ pub(super) fn parse(pkg: &mut Package, wb_part: &str) -> Result<Document, Conver
             failed += 1;
             continue;
         };
-        let content = read_sheet(worksheet, &shared, &styles, date1904);
+        let mut content = read_sheet(worksheet, &shared, &styles, date1904);
+        content.checkboxes = read_vml_checkboxes(pkg, part)?;
         let Some(table) = build_table(content, &mut slots)? else {
             continue;
         };
@@ -234,6 +236,8 @@ pub(super) fn resolve_format(id: u32, custom: &HashMap<u32, &str>) -> CellFormat
 pub(super) struct SheetContent {
     /// Rendered text by zero-based (row, col); empty results are absent.
     pub(super) cells: HashMap<(u32, u32), String>,
+    /// Form control checkboxes by the cell they are anchored in.
+    pub(super) checkboxes: Checkboxes,
     pub(super) hidden_rows: HashSet<u32>,
     /// Inclusive zero-based column ranges hidden by `cols/col` entries.
     pub(super) hidden_cols: Vec<(u32, u32)>,
@@ -400,10 +404,20 @@ pub(super) fn build_table(
     let hidden_row = |r: u32| hidden_rows.binary_search(&r).is_ok();
     let hidden_col = |c: u32| hidden_cols.binary_search(&c).is_ok();
 
+    // Cell text and anchored checkboxes become one inline map; the rest of
+    // the assembly no longer cares which was which.
+    let mut cells: HashMap<(u32, u32), Vec<Inline>> = HashMap::new();
+    for (at, boxes) in sheet.checkboxes.drain() {
+        if at.0 < MAX_ROWS && at.1 < MAX_COLS {
+            cells.insert(at, cell_inlines(sheet.cells.remove(&at), &boxes));
+        }
+    }
+    for (at, text) in sheet.cells.drain() {
+        cells.insert(at, vec![Inline::plain(text)]);
+    }
     // A merge with no surviving row or column disappears with its content.
     // One whose origin is hidden keeps its content at the first surviving
     // position it covers, so the value is not lost.
-    let cells = &mut sheet.cells;
     sheet.merges.retain(|&(r1, c1, r2, c2)| {
         let vr = first_visible(&hidden_rows, r1, r2);
         let vc = first_visible(&hidden_cols, c1, c2);
@@ -420,7 +434,7 @@ pub(super) fn build_table(
 
     // Populated extent over visible cells only.
     let mut bounds: Option<(u32, u32, u32, u32)> = None;
-    for &(r, c) in sheet.cells.keys() {
+    for &(r, c) in cells.keys() {
         if hidden_row(r) || hidden_col(c) {
             continue;
         }
@@ -500,8 +514,8 @@ pub(super) fn build_table(
                 builder.covered();
                 continue;
             }
-            let cell = match sheet.cells.remove(&(row, col)) {
-                Some(text) => Cell::from_inlines(vec![Inline::plain(text)]),
+            let cell = match cells.remove(&(row, col)) {
+                Some(inlines) => Cell::from_inlines(inlines),
                 None => Cell::default(),
             };
             match origins.get(&(ri, ci)) {
@@ -700,6 +714,8 @@ mod tests {
         styles: Option<&'a str>,
         shared: Option<&'a str>,
         date1904: bool,
+        /// Further parts, verbatim: (name, body).
+        extra: Vec<(&'a str, &'a str)>,
     }
 
     impl Wb<'_> {
@@ -761,6 +777,9 @@ mod tests {
                     "xl/sharedStrings.xml",
                     &format!(r#"<?xml version="1.0"?><sst xmlns="{SML}">{shared}</sst>"#),
                 );
+            }
+            for (name, body) in &self.extra {
+                add(name, body);
             }
             zip.finish().unwrap().into_inner()
         }
@@ -1012,5 +1031,51 @@ mod tests {
         assert_eq!(render_serial(0.5, both, false), "12:00:00");
         // A date-only format still has nothing to show but the number.
         assert_eq!(render_serial(0.5, DATE_ONLY, false), "0.5");
+    }
+
+    const VML_REL: &str =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing";
+
+    /// A legacy drawing with a checked captioned box over B1, an unchecked
+    /// bare one over C1, a hidden one over D1, and a cell note.
+    const VML: &str = r##"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <v:shape id="_x0000_s1025" type="#_x0000_t201" style="position:absolute;margin-left:1pt">
+          <v:textbox>
+            <div style="text-align:left"><font face="Tahoma">Roof</font></div>
+          </v:textbox>
+          <x:ClientData ObjectType="Checkbox"><x:Anchor>1, 5, 0, 2, 2, 10, 1, 1</x:Anchor><x:Checked>1</x:Checked></x:ClientData>
+        </v:shape>
+        <v:shape id="_x0000_s1026" type="#_x0000_t201" style="position:absolute">
+          <v:textbox><div><font></font></div></v:textbox>
+          <x:ClientData ObjectType="Checkbox"><x:Anchor>2, 5, 0, 2, 3, 10, 1, 1</x:Anchor></x:ClientData>
+        </v:shape>
+        <v:shape id="_x0000_s1027" type="#_x0000_t201" style="position:absolute;visibility:hidden">
+          <x:ClientData ObjectType="Checkbox"><x:Anchor>3, 5, 0, 2, 4, 10, 1, 1</x:Anchor><x:Checked>1</x:Checked></x:ClientData>
+        </v:shape>
+        <v:shape id="_x0000_s1028" type="#_x0000_t202" style="position:absolute">
+          <v:textbox><div>a note</div></v:textbox>
+          <x:ClientData ObjectType="Note"><x:Anchor>4, 5, 0, 2, 5, 10, 1, 1</x:Anchor></x:ClientData>
+        </v:shape>
+        </xml>"##;
+
+    #[test]
+    fn form_control_checkboxes_land_in_their_anchor_cell() {
+        let rels = format!(
+            r#"<?xml version="1.0"?><Relationships xmlns="{PKG_RELS}"><Relationship Id="rId1" Type="{VML_REL}" Target="../drawings/vmlDrawing1.vml"/></Relationships>"#
+        );
+        let wb = Wb {
+            sheets: vec![(
+                "S",
+                "",
+                r#"<sheetData><row r="1"><c r="A1" t="str"><v>14</v></c><c r="B1" t="str"><v>L/R</v></c></row></sheetData><legacyDrawing r:id="rId1"/>"#,
+            )],
+            extra: vec![
+                ("xl/worksheets/_rels/sheet1.xml.rels", &rels),
+                ("xl/drawings/vmlDrawing1.vml", VML),
+            ],
+            ..Wb::default()
+        };
+        let doc = parse(&wb.build()).unwrap();
+        assert_eq!(texts(first_table(&doc)), vec![vec!["14", "L/R [x] Roof", "[ ]"]]);
     }
 }
