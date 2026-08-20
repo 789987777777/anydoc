@@ -107,6 +107,8 @@ pub struct Inline {
     anchor: Option<String>,
     /// note_ref: the id of the note in `Document.notes`.
     note_id: Option<String>,
+    /// checkbox: its state.
+    checked: Option<bool>,
 }
 
 impl Inline {
@@ -121,6 +123,7 @@ impl Inline {
             source: None,
             anchor: None,
             note_id: None,
+            checked: None,
         }
     }
 }
@@ -146,6 +149,9 @@ fn inline(py: Python<'_>, inline: model::Inline) -> PyResult<Inline> {
         model::Inline::NoteRef(id) => Inline { note_id: Some(id), ..Inline::of("note_ref") },
         model::Inline::LineBreak => Inline::of("line_break"),
         model::Inline::Math(tex) => Inline { text: Some(tex), ..Inline::of("math") },
+        model::Inline::Checkbox(checked) => {
+            Inline { checked: Some(checked), ..Inline::of("checkbox") }
+        }
     })
 }
 
@@ -242,8 +248,6 @@ fn list(py: Python<'_>, list: model::List) -> PyResult<List> {
 pub struct ListItem {
     /// list[Block]
     blocks: Py<PyList>,
-    /// Task-list state, when the item carries a checkbox.
-    checked: Option<bool>,
     /// Literal marker text that overrides the list marker when the source
     /// number text cannot be reproduced from the marker and position alone
     /// (composite number text such as `1-a)`).
@@ -251,11 +255,7 @@ pub struct ListItem {
 }
 
 fn list_item(py: Python<'_>, item: model::ListItem) -> PyResult<ListItem> {
-    Ok(ListItem {
-        blocks: blocks(py, item.blocks)?,
-        checked: item.checked,
-        marker_label: item.marker_label,
-    })
+    Ok(ListItem { blocks: blocks(py, item.blocks)?, marker_label: item.marker_label })
 }
 
 /// Canonical table grid: every logical grid position appears exactly once.

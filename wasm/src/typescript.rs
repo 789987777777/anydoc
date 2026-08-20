@@ -75,6 +75,8 @@ export type InlineKind =
   | 'lineBreak'
   /** An inline formula. */
   | 'math'
+  /** A checkbox control. */
+  | 'checkbox'
 
 export interface Inline {
   kind: InlineKind
@@ -94,6 +96,8 @@ export interface Inline {
   anchor?: string
   /** noteRef: the id of the note in `Document.notes`. */
   noteId?: string
+  /** checkbox: its state. */
+  checked?: boolean
 }
 
 /** Fully resolved character style. */
@@ -155,8 +159,6 @@ export interface List {
 
 export interface ListItem {
   blocks: Array<Block>
-  /** Task-list state, when the item carries a checkbox. */
-  checked?: boolean
   /**
    * Literal marker text that overrides the list marker when the source
    * number text cannot be reproduced from the marker and position alone

@@ -303,7 +303,6 @@ fn composite_marker_labels_are_escaped() {
         start: 1,
         items: vec![crate::model::ListItem {
             blocks: vec![Block::Paragraph(vec![Inline::plain("x")])],
-            checked: None,
             marker_label: Some("#1\n*a*".into()),
         }],
     };
@@ -472,12 +471,10 @@ fn nested_list() {
                     start: 3,
                     items: vec![ListItem {
                         blocks: vec![Block::Paragraph(vec![Inline::plain("inner")])],
-                        checked: None,
                         marker_label: None,
                     }],
                 }),
             ],
-            checked: None,
             marker_label: None,
         }],
     })]);
@@ -488,7 +485,6 @@ fn nested_list() {
 fn roman_and_alpha_markers_render_literally() {
     let item = |text: &str| ListItem {
         blocks: vec![Block::Paragraph(vec![Inline::plain(text)])],
-        checked: None,
         marker_label: None,
     };
     let md = doc(vec![
@@ -635,7 +631,6 @@ fn an_empty_item_keeps_its_marker_and_the_numbering() {
         } else {
             vec![Block::Paragraph(vec![Inline::plain(text)])]
         },
-        checked: None,
         marker_label: None,
     };
     let md = doc(vec![Block::List(List {
@@ -659,18 +654,31 @@ fn task_list() {
         start: 1,
         items: vec![
             ListItem {
-                blocks: vec![Block::Paragraph(vec![Inline::plain("done")])],
-                checked: Some(true),
+                blocks: vec![Block::Paragraph(vec![Inline::Checkbox(true), Inline::plain("done")])],
                 marker_label: None,
             },
             ListItem {
-                blocks: vec![Block::Paragraph(vec![Inline::plain("todo")])],
-                checked: Some(false),
+                blocks: vec![Block::Paragraph(vec![
+                    Inline::Checkbox(false),
+                    Inline::plain(" todo"),
+                ])],
                 marker_label: None,
             },
         ],
     })]);
     assert_eq!(md, "- [x] done\n- [ ] todo\n");
+}
+
+#[test]
+fn checkbox_in_a_table_cell() {
+    let md = doc(vec![table_from(
+        vec![vec![
+            Cell::from_inlines(vec![Inline::Checkbox(true)]),
+            Cell::from_inlines(vec![Inline::Checkbox(false), Inline::plain("Wall")]),
+        ]],
+        0,
+    )]);
+    assert_eq!(md, "|  |  |\n| --- | --- |\n| [x] | [ ] Wall |\n");
 }
 
 // ---------------------------------------------------------------------------

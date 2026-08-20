@@ -99,9 +99,9 @@ class Block:
 
 @final
 class Inline:
-    kind: Literal["text", "link", "image", "anchor", "note_ref", "line_break", "math"]
+    kind: Literal["text", "link", "image", "anchor", "note_ref", "line_break", "math", "checkbox"]
     """`anchor` is a zero-width marker for an internal link target at this
-    position."""
+    position. `checkbox` is a checkbox control."""
     text: str | None
     style: Style | None
     """text."""
@@ -117,6 +117,8 @@ class Inline:
     """anchor: the anchor id."""
     note_id: str | None
     """note_ref: the id of the note in `Document.notes`."""
+    checked: bool | None
+    """checkbox: its state."""
 
 @final
 class Style:
@@ -158,8 +160,6 @@ class List:
 @final
 class ListItem:
     blocks: list[Block]
-    checked: bool | None
-    """Task-list state, when the item carries a checkbox."""
     marker_label: str | None
     """Literal marker text that overrides the list marker when the source
     number text cannot be reproduced from the marker and position alone

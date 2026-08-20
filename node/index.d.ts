@@ -169,6 +169,8 @@ export interface Inline {
   anchor?: string
   /** noteRef: the id of the note in `Document.notes`. */
   noteId?: string
+  /** checkbox: its state. */
+  checked?: boolean
 }
 
 export declare const enum InlineKind {
@@ -180,7 +182,9 @@ export declare const enum InlineKind {
   noteRef = 'noteRef',
   lineBreak = 'lineBreak',
   /** An inline formula. */
-  math = 'math'
+  math = 'math',
+  /** A checkbox control. */
+  checkbox = 'checkbox'
 }
 
 export interface LinkTarget {
@@ -207,8 +211,6 @@ export interface List {
 
 export interface ListItem {
   blocks: Array<Block>
-  /** Task-list state, when the item carries a checkbox. */
-  checked?: boolean
   /**
    * Literal marker text that overrides the list marker when the source
    * number text cannot be reproduced from the marker and position alone

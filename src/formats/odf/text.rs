@@ -217,7 +217,7 @@ fn parse_list(
         }
         first_item = false;
         let label = item_label(ctx, style_name, depth, &chain);
-        current.items.push(ListItem { blocks: item_blocks, checked: None, marker_label: label });
+        current.items.push(ListItem { blocks: item_blocks, marker_label: label });
         next = current.start.saturating_add(current.items.len() as u64);
     }
     flush(&mut current, &mut out, next);

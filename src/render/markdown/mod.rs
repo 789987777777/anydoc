@@ -239,11 +239,6 @@ fn render_list(list: &List, rc: &Ctx) -> Option<String> {
             (None, MarkerKind::Decimal) => format!("{}. ", list.start.saturating_add(i as u64)),
             (None, kind) => format!("- {} ", kind.label(list.start.saturating_add(i as u64))),
         };
-        let checkbox = match item.checked {
-            Some(true) => "[x] ",
-            Some(false) => "[ ] ",
-            None => "",
-        };
         let body = render_blocks(&item.blocks, rc);
         if item.blocks.len() > 1 {
             loose = true;
@@ -251,7 +246,7 @@ fn render_list(list: &List, rc: &Ctx) -> Option<String> {
         let indent = " ".repeat(marker.chars().count());
         let mut lines = body.lines();
         let first = lines.next().unwrap_or("");
-        let mut s = format!("{marker}{checkbox}{first}");
+        let mut s = format!("{marker}{first}");
         for line in lines {
             s.push('\n');
             if line.is_empty() {
