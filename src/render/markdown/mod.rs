@@ -147,7 +147,7 @@ fn collect_note_refs(
                 }
             }
             Block::BlockQuote(blocks) => collect_note_refs(blocks, valid, order, seen),
-            Block::CodeBlock { .. } | Block::Rule => {}
+            Block::CodeBlock { .. } | Block::Rule | Block::Math(_) => {}
         }
     }
 }
@@ -199,6 +199,24 @@ fn render_block(block: &Block, rc: &Ctx) -> Option<String> {
             Some(format!("{fence}{lang}\n{body}\n{fence}"))
         }
         Block::Rule => Some("---".to_string()),
+        Block::Math(tex) => {
+            let tex = tex.trim();
+            if tex.is_empty() {
+                return None;
+            }
+            // A bare `$` is never valid inside math; escaped, it cannot
+            // close the block early.
+            let mut source = String::with_capacity(tex.len());
+            let mut backslashes = 0;
+            for c in tex.chars() {
+                if c == '$' && backslashes % 2 == 0 {
+                    source.push('\\');
+                }
+                source.push(c);
+                backslashes = if c == '\\' { backslashes + 1 } else { 0 };
+            }
+            Some(format!("$$\n{source}\n$$"))
+        }
     }
 }
 
