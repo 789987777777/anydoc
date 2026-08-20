@@ -244,7 +244,9 @@ fn at_space_boundary(inlines: &[Inline], start: bool) -> bool {
                 }
                 return at_space_boundary(content, false);
             }
-            Inline::Image { .. } | Inline::NoteRef(_) | Inline::Math(_) => return false,
+            Inline::Image { .. } | Inline::NoteRef(_) | Inline::Math(_) | Inline::Checkbox(_) => {
+                return false;
+            }
         }
     }
     start
@@ -544,11 +546,8 @@ impl Builder<'_> {
         if !ordered {
             let mut list_items = Vec::with_capacity(items.len());
             for li in &items {
-                list_items.push(ListItem {
-                    blocks: self.sub_blocks(li, delta)?,
-                    checked: None,
-                    marker_label: None,
-                });
+                list_items
+                    .push(ListItem { blocks: self.sub_blocks(li, delta)?, marker_label: None });
             }
             let list = List { marker: MarkerKind::Bullet, start: 1, items: list_items };
             return Ok(vec![Block::List(list)]);
@@ -584,7 +583,6 @@ impl Builder<'_> {
             for (li, &n) in items.iter().zip(&numbers) {
                 list_items.push(ListItem {
                     blocks: self.sub_blocks(li, delta)?,
-                    checked: None,
                     marker_label: Some(format!("{n}.")),
                 });
             }
@@ -594,8 +592,7 @@ impl Builder<'_> {
         let mut current: Option<List> = None;
         let mut last_number = 0i64;
         for (li, &number) in items.iter().zip(&numbers) {
-            let item =
-                ListItem { blocks: self.sub_blocks(li, delta)?, checked: None, marker_label: None };
+            let item = ListItem { blocks: self.sub_blocks(li, delta)?, marker_label: None };
             let contiguous = current.is_some() && last_number.checked_add(1) == Some(number);
             if !contiguous {
                 if let Some(list) = current.take() {

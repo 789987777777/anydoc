@@ -1,6 +1,6 @@
 //! Inline run normalization and rendering.
 
-use crate::model::{ImageSource, Inline, LinkTarget, Style, inlines_are_empty};
+use crate::model::{ImageSource, Inline, LinkTarget, Style, checkbox_text, inlines_are_empty};
 use crate::render::markdown::Ctx;
 use crate::render::markdown::escape::{
     Delims, EscapeOpts, InlineContext, backtick_fence, escape_cell_code_span, escape_text,
@@ -17,6 +17,7 @@ pub(crate) enum Norm<'a> {
     NoteRef(&'a str),
     LineBreak,
     Math(&'a str),
+    Checkbox(bool),
 }
 
 /// Single-pass normalization: drops empty runs, strips styling from
@@ -77,6 +78,7 @@ pub(crate) fn normalize<'a>(inlines: &'a [Inline], rc: &Ctx) -> Vec<Norm<'a>> {
             Inline::LineBreak => out.push(Norm::LineBreak),
             Inline::Math(tex) if tex.trim().is_empty() => continue,
             Inline::Math(tex) => out.push(Norm::Math(tex.trim())),
+            Inline::Checkbox(checked) => out.push(Norm::Checkbox(*checked)),
         }
     }
     out
@@ -104,7 +106,7 @@ fn render_inlines_mode(inlines: &[Inline], ctx: InlineContext, in_label: bool, r
                 // A hard break renders as `\`, an anchor as `<a ...>`: not
                 // markup, but a nonspace character a run-final delimiter can
                 // be left-flanking against.
-                let next_nonspace = matches!(next, Some(Norm::Anchor(_)))
+                let next_nonspace = matches!(next, Some(Norm::Anchor(_) | Norm::Checkbox(_)))
                     || (matches!(next, Some(Norm::LineBreak)) && ctx != InlineContext::Heading);
                 let opts = EscapeOpts {
                     trailing_active: next_active,
@@ -133,6 +135,13 @@ fn render_inlines_mode(inlines: &[Inline], ctx: InlineContext, in_label: bool, r
                 InlineContext::TableCell => out.push('\n'),
             },
             Norm::Math(tex) => push_math_span(tex, ctx, &mut out),
+            Norm::Checkbox(checked) => {
+                out.push_str(checkbox_text(*checked));
+                // The token stands apart from a caption that follows it.
+                if matches!(runs.get(idx + 1), Some(run) if !starts_with_space(run)) {
+                    out.push(' ');
+                }
+            }
         }
     }
     out
@@ -262,9 +271,21 @@ fn delims_of(run: &Norm, rc: &Ctx) -> Delims {
             // Sourceless images degrade to their alt as plain text.
             ImageSource::Asset(_) | ImageSource::Unavailable => delims.insert_closers(alt),
         },
-        Norm::NoteRef(_) | Norm::Anchor(_) | Norm::LineBreak | Norm::Math(_) => {}
+        Norm::NoteRef(_)
+        | Norm::Anchor(_)
+        | Norm::LineBreak
+        | Norm::Math(_)
+        | Norm::Checkbox(_) => {}
     }
     delims
+}
+
+fn starts_with_space(run: &Norm) -> bool {
+    match run {
+        Norm::Text { text, .. } => text.starts_with(char::is_whitespace),
+        Norm::LineBreak => true,
+        _ => false,
+    }
 }
 
 fn target_has_backtick(target: &LinkTarget) -> bool {
