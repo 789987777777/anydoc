@@ -5,6 +5,7 @@
 //! assembly as the SpreadsheetML reader, so a workbook saved as .xls and as
 //! .xlsx converts identically.
 
+use super::controls::Checkbox;
 use super::xlsx::{
     CellFormat, SheetContent, build_table, format_as_text, render_number, resolve_format,
 };
@@ -13,6 +14,7 @@ use crate::error::ConvertError;
 use crate::model::{Block, Document, Inline};
 use crate::package::limits;
 use crate::shared::binary::{get_u16, get_u32, read_ole_stream, utf16le_units};
+use crate::shared::officeart;
 use crate::shared::text::clean_text;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -40,6 +42,9 @@ const MULRK: u16 = 0x00BD;
 const BOOLERR: u16 = 0x0205;
 const FORMULA: u16 = 0x0006;
 const STRING: u16 = 0x0207;
+const MSODRAWING: u16 = 0x00EC;
+const OBJ: u16 = 0x005D;
+const TXO: u16 = 0x01B6;
 
 /// BOF `dt` value for a worksheet (or dialog sheet) substream.
 const WORKSHEET_SUBSTREAM: u16 = 0x0010;
@@ -498,6 +503,10 @@ fn read_sheet(
     // A FORMULA whose cached value is a string: (row, col, ixfe) waiting
     // for the STRING record that carries the text.
     let mut pending: Option<(u32, u32, u16)> = None;
+    // A drawing object's shape arrives in MSODRAWING ahead of its OBJ, and
+    // a checkbox's caption in the TXO after it.
+    let mut shape: Option<Shape> = None;
+    let mut last_checkbox: Option<(u32, u32)> = None;
     while let Some((rec_type, body, next)) = next_record(data, pos, records)? {
         pos = next;
         match rec_type {
@@ -659,6 +668,33 @@ fn read_sheet(
                     }
                 }
             }
+            MSODRAWING if globals.biff8 => {
+                let (segs, after) = continued(data, body, pos, records)?;
+                pos = after;
+                shape = if segs.len() == 1 { last_shape(body) } else { last_shape(&segs.concat()) };
+                last_checkbox = None;
+            }
+            OBJ if globals.biff8 => {
+                last_checkbox = None;
+                if let Some(checked) = obj_checkbox(body)
+                    && let Some(Shape { anchor: at, hidden: false }) = shape.take()
+                    && at.1 < MAX_COLS
+                {
+                    let caption = String::new();
+                    out.checkboxes.entry(at).or_default().push(Checkbox { checked, caption });
+                    last_checkbox = Some(at);
+                }
+            }
+            TXO => {
+                let (segs, after) = continued(data, body, pos, records)?;
+                pos = after;
+                if let Some(at) = last_checkbox.take()
+                    && let Some(caption) = txo_text(&segs)
+                    && let Some(b) = out.checkboxes.get_mut(&at).and_then(|v| v.last_mut())
+                {
+                    b.caption = clean_text(&caption);
+                }
+            }
             STRING => {
                 let (segs, after) = continued(data, body, pos, records)?;
                 pos = after;
@@ -678,6 +714,111 @@ fn read_sheet(
         }
     }
     Ok(Some(out))
+}
+
+/// What an OBJ needs from its shape: the cell the client anchor starts in,
+/// and whether the shape is hidden.
+struct Shape {
+    anchor: (u32, u32),
+    hidden: bool,
+}
+
+/// The last shape in an MSODRAWING body. Containers are entered rather
+/// than skipped, so the scan stays linear whatever the nesting.
+fn last_shape(data: &[u8]) -> Option<Shape> {
+    const SP_CONTAINER: u16 = 0xF004;
+    const OPT: u16 = 0xF00B;
+    const CLIENT_ANCHOR: u16 = 0xF010;
+    // Group shape boolean properties: fHidden with its use bit.
+    const PID_GROUP_SHAPE: u16 = 0x03BF;
+    const F_HIDDEN: u32 = 0x0000_0002;
+    const F_USE_HIDDEN: u32 = 0x0002_0000;
+    let mut anchor = None;
+    let mut hidden = false;
+    let mut off = 0usize;
+    while let Some((ver_inst, rec_type, body)) = officeart::record_at(data, off) {
+        if ver_inst & 0x000F == 0x000F {
+            if rec_type == SP_CONTAINER {
+                anchor = None;
+                hidden = false;
+            }
+            off += 8;
+            continue;
+        }
+        match rec_type {
+            CLIENT_ANCHOR => {
+                if let (Some(col), Some(row)) = (get_u16(body, 2), get_u16(body, 6)) {
+                    anchor = Some((u32::from(row), u32::from(col)));
+                }
+            }
+            OPT => {
+                for i in 0..usize::from(ver_inst >> 4) {
+                    let (Some(pid), Some(op)) = (get_u16(body, i * 6), get_u32(body, i * 6 + 2))
+                    else {
+                        break;
+                    };
+                    if pid & 0x3FFF == PID_GROUP_SHAPE && op & F_USE_HIDDEN != 0 {
+                        hidden = op & F_HIDDEN != 0;
+                    }
+                }
+            }
+            _ => {}
+        }
+        off += 8 + body.len();
+    }
+    anchor.map(|anchor| Shape { anchor, hidden })
+}
+
+/// The checked state of an OBJ record when its FtCmo names a checkbox and
+/// its FtCblsData carries a definite state (2 is mixed, which has no token).
+fn obj_checkbox(body: &[u8]) -> Option<bool> {
+    const FT_END: u16 = 0x0000;
+    const FT_CMO: u16 = 0x0015;
+    const FT_CBLS_DATA: u16 = 0x0012;
+    const OT_CHECKBOX: u16 = 0x000B;
+    let mut off = 0usize;
+    let mut is_checkbox = false;
+    let mut state = None;
+    while let (Some(ft), Some(cb)) = (get_u16(body, off), get_u16(body, off + 2)) {
+        if ft == FT_END {
+            break;
+        }
+        let data = body.get(off + 4..off + 4 + usize::from(cb))?;
+        match ft {
+            FT_CMO => is_checkbox = get_u16(data, 0) == Some(OT_CHECKBOX),
+            FT_CBLS_DATA => state = get_u16(data, 0),
+            _ => {}
+        }
+        off += 4 + usize::from(cb);
+    }
+    match (is_checkbox, state?) {
+        (true, 0) => Some(false),
+        (true, 1) => Some(true),
+        _ => None,
+    }
+}
+
+/// The text of a TXO record: `cchText` characters spread over the CONTINUE
+/// records after it, each opening with its own encoding flag byte.
+fn txo_text(segs: &[&[u8]]) -> Option<String> {
+    let mut remaining = usize::from(get_u16(segs.first()?, 10)?);
+    let mut units: Vec<u16> = Vec::with_capacity(remaining);
+    for seg in segs.iter().skip(1) {
+        if remaining == 0 {
+            break;
+        }
+        let (&flags, chars) = seg.split_first()?;
+        if flags & 0x01 != 0 {
+            let take = (chars.len() / 2).min(remaining);
+            units.extend(utf16le_units(&chars[..take * 2]));
+            remaining -= take;
+        } else {
+            let take = chars.len().min(remaining);
+            units.extend(chars[..take].iter().map(|&b| u16::from(b)));
+            remaining -= take;
+        }
+    }
+    Some(String::from_utf16_lossy(&units))
 }
 
 /// Record only non-empty cell text, like the xlsx reader.
@@ -1077,5 +1218,90 @@ mod tests {
         stream.extend(rec(EOF_REC, &[]));
         let doc = parse(&ole_with("Book", &stream)).unwrap();
         assert_eq!(texts(first_table(&doc)), vec![vec!["l\u{e9}gacy"]]);
+    }
+
+    /// An MSODRAWING body: one SpContainer holding a client anchor that
+    /// starts at (row, col), plus an OPT hiding the shape when asked.
+    fn msodrawing(row: u16, col: u16, hidden: bool) -> Vec<u8> {
+        let mut anchor = vec![0u8; 18];
+        anchor[2..4].copy_from_slice(&col.to_le_bytes());
+        anchor[6..8].copy_from_slice(&row.to_le_bytes());
+        anchor[10..12].copy_from_slice(&(col + 1).to_le_bytes());
+        anchor[14..16].copy_from_slice(&(row + 1).to_le_bytes());
+        let mut children = Vec::new();
+        if hidden {
+            children.extend_from_slice(&0x0013u16.to_le_bytes()); // one property
+            children.extend_from_slice(&0xF00Bu16.to_le_bytes());
+            children.extend_from_slice(&6u32.to_le_bytes());
+            children.extend_from_slice(&0x03BFu16.to_le_bytes());
+            children.extend_from_slice(&0x0002_0002u32.to_le_bytes());
+        }
+        children.extend_from_slice(&0u16.to_le_bytes());
+        children.extend_from_slice(&0xF010u16.to_le_bytes());
+        children.extend_from_slice(&(anchor.len() as u32).to_le_bytes());
+        children.extend(anchor);
+        let mut body = Vec::new();
+        body.extend_from_slice(&0x000Fu16.to_le_bytes());
+        body.extend_from_slice(&0xF004u16.to_le_bytes());
+        body.extend_from_slice(&(children.len() as u32).to_le_bytes());
+        body.extend(children);
+        rec(MSODRAWING, &body)
+    }
+
+    /// An OBJ record for a form control of type `ot` carrying `state`.
+    fn obj(ot: u16, state: u16) -> Vec<u8> {
+        let mut body = Vec::new();
+        body.extend_from_slice(&0x0015u16.to_le_bytes());
+        body.extend_from_slice(&0x0012u16.to_le_bytes());
+        body.extend_from_slice(&ot.to_le_bytes());
+        body.extend_from_slice(&1u16.to_le_bytes());
+        body.extend_from_slice(&[0u8; 14]);
+        body.extend_from_slice(&0x0012u16.to_le_bytes());
+        body.extend_from_slice(&8u16.to_le_bytes());
+        body.extend_from_slice(&state.to_le_bytes());
+        body.extend_from_slice(&[0u8; 6]);
+        body.extend_from_slice(&[0u8; 4]);
+        rec(OBJ, &body)
+    }
+
+    /// A TXO record with its text and formatting-run CONTINUE records.
+    fn txo(text: &str) -> Vec<u8> {
+        let mut body = vec![0u8; 18];
+        body[10..12].copy_from_slice(&(text.len() as u16).to_le_bytes());
+        body[12..14].copy_from_slice(&16u16.to_le_bytes());
+        let mut out = rec(TXO, &body);
+        let mut chars = vec![0x00];
+        chars.extend_from_slice(text.as_bytes());
+        out.extend(rec(CONTINUE, &chars));
+        out.extend(rec(CONTINUE, &[0u8; 16]));
+        out
+    }
+
+    /// Re-frame a record as its first `at` payload bytes plus a CONTINUE
+    /// carrying the rest.
+    fn split_at(record: &[u8], at: usize) -> Vec<u8> {
+        let rec_type = u16::from_le_bytes([record[0], record[1]]);
+        let payload = &record[4..];
+        let mut out = rec(rec_type, &payload[..at]);
+        out.extend(rec(CONTINUE, &payload[at..]));
+        out
+    }
+
+    #[test]
+    fn form_control_checkboxes_land_in_their_anchor_cell() {
+        let mut records = label(20, 0, 0, "14");
+        records.extend(split_at(&msodrawing(20, 3, false), 12));
+        records.extend(obj(0x0B, 1));
+        records.extend(txo("Roof"));
+        records.extend(msodrawing(20, 4, false));
+        records.extend(obj(0x0B, 0));
+        // A text box is a drawing object too, and must not be read as a box.
+        records.extend(msodrawing(20, 5, false));
+        records.extend(obj(0x06, 1));
+        records.extend(txo("note"));
+        records.extend(msodrawing(20, 6, true));
+        records.extend(obj(0x0B, 1));
+        let doc = parse(&one_sheet(records).build()).unwrap();
+        assert_eq!(texts(first_table(&doc)), vec![vec!["14", "", "", "[x] Roof", "[ ]"]]);
     }
 }

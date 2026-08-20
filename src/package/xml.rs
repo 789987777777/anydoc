@@ -39,9 +39,11 @@ pub mod ns {
     pub const XLINK: &str = "http://www.w3.org/1999/xlink";
     pub const XML: &str = "http://www.w3.org/XML/1998/namespace";
     pub const SVG_COMPAT: &str = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0";
+    pub const FORM: &str = "urn:oasis:names:tc:opendocument:xmlns:form:1.0";
 
     pub const VML: &str = "urn:schemas-microsoft-com:vml";
     pub const O_VML: &str = "urn:schemas-microsoft-com:office:office";
+    pub const X_VML: &str = "urn:schemas-microsoft-com:office:excel";
     pub const WPS: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
     pub const WPG: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup";
     pub const A14: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
