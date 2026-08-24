@@ -1,6 +1,6 @@
 //! Typed conversion errors.
 //!
-//! An error means meaningful conversion was impossible: the input was
+//! An error means a complete conversion was impossible: the input was
 //! unreadable or structurally unusable, encrypted, or crossed a fixed
 //! safety/resource limit. Recoverable producer quirks never surface here -
 //! they are recovered or skipped (and logged via the `log` facade) while

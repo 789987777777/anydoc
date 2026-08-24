@@ -36,7 +36,7 @@ Calls are synchronous: wasm runs single-threaded on the calling thread, so conve
 
 ## Errors
 
-A conversion throws only when no meaningful Markdown could come out of the bytes. The thrown value is an `Error` whose `code` names what went wrong:
+A conversion throws only when no complete Markdown could come out of the bytes. The thrown value is an `Error` whose `code` names what went wrong:
 
 ```js
 try {

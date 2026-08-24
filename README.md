@@ -202,7 +202,7 @@ The same three functions exist in Node (`formatFromBytes`, ...) and Python (`any
 
 ## Errors
 
-A conversion returns `Err` only when no meaningful Markdown could come out of the file. `ConvertError` names what went wrong:
+A conversion returns `Err` only when no complete Markdown could come out of the file. `ConvertError` names what went wrong:
 
 ```rust
 match anydoc::to_markdown(path) {

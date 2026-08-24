@@ -46,7 +46,7 @@ document = anydoc.to_document(data)
 
 ## Errors
 
-A conversion raises only when no meaningful Markdown could come out of the file. The exception type names what went wrong:
+A conversion raises only when no complete Markdown could come out of the file. The exception type names what went wrong:
 
 ```python
 try:

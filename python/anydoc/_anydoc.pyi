@@ -8,7 +8,7 @@ Format = Literal[
 ]
 
 class ConvertError(Exception):
-    """Meaningful conversion was impossible. Catch this to handle every kind
+    """A complete conversion was impossible. Catch this to handle every kind
     of failure, or one of the subclasses below to single one out. An
     unreadable file raises `OSError` instead."""
 
