@@ -26,13 +26,14 @@ Options:
 
 The format is detected from the file content; the file extension is the
 fallback for signature-less formats (CSV). stdin has no extension, so CSV
-input from stdin needs --format csv. Scanned or image-only PDFs need OCR,
-which anydoc does not do, and error as unsupported.
+input from stdin needs --format csv. Scanned or image-only pages need OCR,
+which anydoc does not do: the document exits 3 naming them.
 
 Exit codes:
   0  success
   1  the document could not be read or converted
   2  usage error: unknown option, missing input, or invalid --format
+  3  pages of a PDF need OCR
 
 Examples:
   anydoc report.docx
@@ -43,6 +44,7 @@ Examples:
 
 const USAGE_ERROR = 2
 const CONVERSION_ERROR = 1
+const NEEDS_OCR = 3
 
 function fail(code, message) {
   process.stderr.write(`anydoc: ${message}\n`)
@@ -141,7 +143,7 @@ async function main() {
       markdown = await toMarkdown(args.input)
     }
   } catch (error) {
-    fail(CONVERSION_ERROR, error.message)
+    fail(error.code === 'needsOcr' ? NEEDS_OCR : CONVERSION_ERROR, error.message)
   }
 
   if (args.output !== null) {

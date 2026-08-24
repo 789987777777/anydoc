@@ -16,8 +16,13 @@ const TYPESCRIPT: &str = r#"
  * counterpart: there is no filesystem to read from.
  */
 export type ConvertErrorCode =
-  /** Unknown format, or one that cannot be converted (an image-only PDF). */
+  /** Unknown format, or one that cannot be converted. */
   | 'unsupported'
+  /**
+   * Pages of a PDF are scanned or image-only and need OCR, which anydoc does
+   * not do. The error is a `NeedsOcrError` naming them.
+   */
+  | 'needsOcr'
   /** Structurally unusable: no meaningful content could be extracted. */
   | 'malformed'
   /** Encrypted or password-protected. */
@@ -26,6 +31,15 @@ export type ConvertErrorCode =
   | 'resourceLimit'
   /** A part required for any meaningful output is absent. */
   | 'missingPart'
+
+/** The error thrown for a PDF with pages that need OCR. */
+export interface NeedsOcrError extends Error {
+  code: 'needsOcr'
+  /** 1-indexed pages that need OCR. */
+  pages: number[]
+  /** Pages in the document. */
+  pageCount: number
+}
 
 export interface Document {
   blocks: Array<Block>

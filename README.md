@@ -208,7 +208,11 @@ A conversion returns `Err` only when no meaningful Markdown could come out of th
 match anydoc::to_markdown(path) {
     Ok(markdown) => Some(markdown),
     // No document comes out of these, so record the file and take the next one.
-    Err(error @ (ConvertError::Encrypted | ConvertError::Unsupported(_))) => {
+    Err(
+        error @ (ConvertError::Encrypted
+        | ConvertError::Unsupported(_)
+        | ConvertError::NeedsOcr { .. }),
+    ) => {
         unconverted.push((path, error));
         None
     }
@@ -218,7 +222,8 @@ match anydoc::to_markdown(path) {
 
 | Variant         | Meaning                                                             |
 | --------------- | ------------------------------------------------------------------- |
-| `Unsupported`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `Unsupported`   | Unknown format, or one that cannot be converted                     |
+| `NeedsOcr`      | Pages of a PDF are scanned or image-only; `pages` names them        |
 | `Malformed`     | Structurally unusable: no meaningful content could be extracted     |
 | `Encrypted`     | Encrypted or password-protected                                     |
 | `ResourceLimit` | Crossed a fixed safety limit (decompression, nesting, node count)   |

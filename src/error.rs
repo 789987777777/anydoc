@@ -14,6 +14,15 @@ use std::fmt;
 pub enum ConvertError {
     /// The format is unknown or cannot be converted at all.
     Unsupported(String),
+    /// Some pages of a PDF are scanned or image-only and need OCR, which
+    /// anydoc does not do. Nothing is returned for the document, so output
+    /// missing those pages never passes as complete.
+    NeedsOcr {
+        /// 1-indexed pages that need OCR.
+        pages: Vec<u32>,
+        /// Pages in the document.
+        page_count: u32,
+    },
     /// The document is structurally unusable - no meaningful content could be
     /// extracted. `part` names the package part or stream when known.
     Malformed {
@@ -46,6 +55,9 @@ impl fmt::Display for ConvertError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConvertError::Unsupported(what) => write!(f, "unsupported input: {what}"),
+            ConvertError::NeedsOcr { pages, page_count } => {
+                write!(f, "{} of {page_count} pages need OCR", pages.len())
+            }
             ConvertError::Malformed { part: Some(part), detail } => {
                 write!(f, "malformed document ({part}): {detail}")
             }
@@ -84,6 +96,7 @@ impl ConvertError {
     pub fn code(&self) -> &'static str {
         match self {
             ConvertError::Unsupported(_) => "unsupported",
+            ConvertError::NeedsOcr { .. } => "needsOcr",
             ConvertError::Malformed { .. } => "malformed",
             ConvertError::Encrypted => "encrypted",
             ConvertError::ResourceLimit { .. } => "resourceLimit",
@@ -116,6 +129,7 @@ mod tests {
     #[test]
     fn codes_name_every_variant() {
         assert_eq!(ConvertError::Unsupported(String::new()).code(), "unsupported");
+        assert_eq!(ConvertError::NeedsOcr { pages: vec![1], page_count: 1 }.code(), "needsOcr");
         assert_eq!(ConvertError::malformed("").code(), "malformed");
         assert_eq!(ConvertError::malformed_part("word/document.xml", "").code(), "malformed");
         assert_eq!(ConvertError::Encrypted.code(), "encrypted");

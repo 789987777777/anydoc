@@ -59,7 +59,8 @@ except (anydoc.EncryptedError, anydoc.UnsupportedError) as error:
 
 | Exception            | Raised when                                                         |
 | -------------------- | ------------------------------------------------------------------- |
-| `UnsupportedError`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `UnsupportedError`   | Unknown format, or one that cannot be converted                     |
+| `NeedsOcrError`      | Pages of a PDF are scanned or image-only; `pages` names them        |
 | `MalformedError`     | Structurally unusable: no meaningful content could be extracted     |
 | `EncryptedError`     | Encrypted or password-protected                                     |
 | `ResourceLimitError` | Crossed a fixed safety limit (decompression, nesting, node count)   |

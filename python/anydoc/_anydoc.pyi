@@ -13,8 +13,16 @@ class ConvertError(Exception):
     unreadable file raises `OSError` instead."""
 
 class UnsupportedError(ConvertError):
-    """The format is unknown, or cannot be converted at all: a scanned or
-    image-only PDF needs OCR, which anydoc does not do."""
+    """The format is unknown, or cannot be converted at all."""
+
+class NeedsOcrError(ConvertError):
+    """Pages of a PDF are scanned or image-only and need OCR, which anydoc
+    does not do."""
+
+    pages: list[int]
+    """1-indexed pages that need OCR."""
+    page_count: int
+    """Pages in the document."""
 
 class MalformedError(ConvertError):
     """The document is structurally unusable: no meaningful content could be

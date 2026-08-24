@@ -23,6 +23,7 @@ const OUTLINE = fixture('docx/handmade-outline.docx')
 const RICH = fixture('docx/handmade-rich.docx')
 const CSV = fixture('csv/sheet.csv')
 const ENCRYPTED = fixture('malformed/encrypted--errors.odt')
+const MIXED = fixture('pdf/handmade-mixed.pdf')
 
 test('toMarkdown detects the format from the file content', async () => {
   const markdown = await toMarkdown(OUTLINE)
@@ -83,6 +84,14 @@ test('conversion errors reject with a coded Error', async () => {
   await rejects(toMarkdownBytes(await readFile(ENCRYPTED), 'odt'), 'encrypted', /encrypted/)
   await rejects(toDocument(await readFile(ENCRYPTED), 'odt'), 'encrypted', /encrypted/)
   await rejects(toMarkdown(fixture('docx/no-such-file.docx')), 'io', /io error/)
+  await rejects(toMarkdown(MIXED), 'needsOcr', /1 of 2 pages need OCR/)
+})
+
+test('a pdf with scanned pages rejects naming them instead of dropping them', async () => {
+  await assert.rejects(toMarkdown(MIXED), (error) => {
+    assert.deepEqual([error.pages, error.pageCount], [[2], 2])
+    return true
+  })
 })
 
 const CLI = fileURLToPath(new URL('./cli.js', import.meta.url))
@@ -122,6 +131,12 @@ test('cli exits 1 when the document cannot be converted', async () => {
   const { code, stderr } = await runCli(['no-such-file.docx'])
   assert.equal(code, 1)
   assert.match(stderr, /^anydoc: /)
+})
+
+test('cli exits 3 when pages need OCR', async () => {
+  const { code, stderr } = await runCli([MIXED])
+  assert.equal(code, 3)
+  assert.match(stderr, /^anydoc: 1 of 2 pages need OCR/)
 })
 
 test('cli exits 2 on usage errors', async () => {

@@ -14,6 +14,7 @@ RICH = FIXTURES / "docx" / "handmade-rich.docx"
 CSV = FIXTURES / "csv" / "sheet.csv"
 ENCRYPTED = FIXTURES / "malformed" / "encrypted--errors.odt"
 ZIPBOMB = FIXTURES / "abuse" / "zipbomb--errors.docx"
+MIXED = FIXTURES / "pdf" / "handmade-mixed.pdf"
 
 
 class AnydocTest(unittest.TestCase):
@@ -70,6 +71,11 @@ class AnydocTest(unittest.TestCase):
 
         with self.assertRaises(anydoc.EncryptedError):
             anydoc.to_markdown_bytes(ENCRYPTED.read_bytes(), "odt")
+
+        # A scanned page is reported, not dropped from the output.
+        with self.assertRaises(anydoc.NeedsOcrError) as caught:
+            anydoc.to_markdown(MIXED)
+        self.assertEqual((caught.exception.pages, caught.exception.page_count), ([2], 2))
 
         with self.assertRaises(anydoc.ResourceLimitError) as caught:
             anydoc.to_markdown_bytes(ZIPBOMB.read_bytes(), "docx")
