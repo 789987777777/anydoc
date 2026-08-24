@@ -15,6 +15,7 @@ import {
   toDocument,
   toMarkdown,
   toMarkdownBytes,
+  toMarkdownPages,
 } from './index.js'
 
 const fixture = (name) => fileURLToPath(new URL(`../tests/fixtures/${name}`, import.meta.url))
@@ -92,6 +93,12 @@ test('a pdf with scanned pages rejects naming them instead of dropping them', as
     assert.deepEqual([error.pages, error.pageCount], [[2], 2])
     return true
   })
+})
+
+test('toMarkdownPages keeps the text pages of a partly scanned pdf', async () => {
+  const pages = await toMarkdownPages(await readFile(MIXED))
+  assert.deepEqual(pages.map((page) => [page.number, page.needsOcr]), [[1, false], [2, true]])
+  assert.match(pages[0].markdown, /Text on the first page/)
 })
 
 const CLI = fileURLToPath(new URL('./cli.js', import.meta.url))

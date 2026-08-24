@@ -71,6 +71,13 @@ def to_markdown_bytes(data: bytes | bytearray, format: Format | None = None) -> 
     detected from the content, which signature-less formats (CSV) have to
     name explicitly."""
 
+def to_markdown_pages(data: bytes | bytearray) -> list[Page]:
+    """Convert a PDF to Markdown one page at a time, marking the pages that
+    need OCR instead of raising for the document: for attributing output to
+    its page, and for taking the text pages of a partly scanned document.
+
+    Unsupported for every other format."""
+
 def to_document(data: bytes | bytearray, format: Format | None = None) -> Document:
     """Parse an in-memory document into the document model, which also
     carries the embedded assets. Without a format, it is detected from the
@@ -78,6 +85,19 @@ def to_document(data: bytes | bytearray, format: Format | None = None) -> Docume
 
     Unsupported for `pdf`: PDF conversion produces Markdown directly and has
     no document-model form; use `to_markdown_bytes`."""
+
+@final
+class Page:
+    """One page of a PDF, from `to_markdown_pages`."""
+
+    number: int
+    """1-indexed page number."""
+    markdown: str
+    """What could be extracted from the page: unreliable or empty when it
+    needs OCR."""
+    needs_ocr: bool
+    """The page is scanned or image-only and needs OCR, which anydoc does
+    not do."""
 
 @final
 class Document:

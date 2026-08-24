@@ -12,6 +12,7 @@ import {
   formatFromPath,
   toDocument,
   toMarkdownBytes,
+  toMarkdownPages,
 } from './pkg/anydoc_wasm.js'
 
 const fixture = (name) => fileURLToPath(new URL(`../tests/fixtures/${name}`, import.meta.url))
@@ -40,6 +41,12 @@ test('toMarkdownBytes detects the format when none is named', () => {
 test('pdf converts to Markdown but has no document model', () => {
   assert.ok(toMarkdownBytes(PDF).length > 0)
   assert.throws(() => toDocument(PDF), /pdf/i)
+})
+
+test('toMarkdownPages keeps the text pages of a partly scanned pdf', () => {
+  const pages = toMarkdownPages(MIXED)
+  assert.deepEqual(pages.map((page) => [page.number, page.needsOcr]), [[1, false], [2, true]])
+  assert.match(pages[0].markdown, /Text on the first page/)
 })
 
 test('toDocument exposes the document model', () => {

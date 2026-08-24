@@ -41,7 +41,7 @@ npm install @firecrawl/anydoc
 ```
 
 ```js
-import { toDocument, toMarkdown, toMarkdownBytes } from '@firecrawl/anydoc';
+import { toDocument, toMarkdown, toMarkdownBytes, toMarkdownPages } from '@firecrawl/anydoc';
 
 // From a file path:
 const markdown = await toMarkdown('report.docx');
@@ -54,6 +54,9 @@ const fromCsv = await toMarkdownBytes(bytes, 'csv');
 
 // Or stop at the document model, which also carries embedded assets:
 const document = await toDocument(bytes);
+
+// A PDF can also come out one page at a time, marking the pages that need OCR:
+const pages = await toMarkdownPages(bytes);
 ```
 
 > Full API reference: [node/README.md](node/README.md)
@@ -78,6 +81,9 @@ markdown = anydoc.to_markdown_bytes(data, "csv")
 
 # Or stop at the document model, which also carries embedded assets:
 document = anydoc.to_document(data)
+
+# A PDF can also come out one page at a time, marking the pages that need OCR:
+pages = anydoc.to_markdown_pages(data)
 ```
 
 > Full API reference: [python/README.md](python/README.md)
@@ -89,7 +95,7 @@ npm install @firecrawl/anydoc-wasm
 ```
 
 ```js
-import init, { toMarkdownBytes, toDocument } from '@firecrawl/anydoc-wasm';
+import init, { toMarkdownBytes, toMarkdownPages, toDocument } from '@firecrawl/anydoc-wasm';
 
 await init();
 
@@ -101,6 +107,9 @@ const fromCsv = toMarkdownBytes(bytes, 'csv');
 
 // Or stop at the document model, which also carries embedded assets:
 const document = toDocument(bytes);
+
+// A PDF can also come out one page at a time, marking the pages that need OCR:
+const pages = toMarkdownPages(bytes);
 ```
 
 > Full API reference: [wasm/README.md](wasm/README.md)
@@ -123,6 +132,9 @@ let markdown = anydoc::to_markdown_bytes(&bytes, anydoc::Format::Csv)?;
 
 // Or stop at the document model, which also carries embedded assets:
 let document = anydoc::to_document(&bytes, None)?;
+
+// A PDF can also come out one page at a time, marking the pages that need OCR:
+let pages = anydoc::to_markdown_pages(&bytes)?;
 ```
 
 ## Features

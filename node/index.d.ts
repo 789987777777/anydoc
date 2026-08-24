@@ -255,6 +255,22 @@ export declare const enum NoteKind {
   endnote = 'endnote'
 }
 
+/** One page of a PDF, from `toMarkdownPages`. */
+export interface Page {
+  /** 1-indexed page number. */
+  number: number
+  /**
+   * What could be extracted from the page: unreliable or empty when it
+   * needs OCR.
+   */
+  markdown: string
+  /**
+   * The page is scanned or image-only and needs OCR, which anydoc does
+   * not do.
+   */
+  needsOcr: boolean
+}
+
 /** Fully resolved character style. */
 export interface Style {
   bold: boolean
@@ -311,3 +327,14 @@ export declare function toMarkdown(path: string): Promise<string>
  * Rejects with an `Error` carrying a `ConvertErrorCode` on `code`.
  */
 export declare function toMarkdownBytes(bytes: Uint8Array, format?: Format | undefined | null): Promise<string>
+
+/**
+ * Convert a PDF to Markdown one page at a time, marking the pages that need
+ * OCR instead of rejecting the document: for attributing output to its page,
+ * and for taking the text pages of a partly scanned document.
+ *
+ * Unsupported for every other format.
+ *
+ * Rejects with an `Error` carrying a `ConvertErrorCode` on `code`.
+ */
+export declare function toMarkdownPages(bytes: Uint8Array): Promise<Page[]>

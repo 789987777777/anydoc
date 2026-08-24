@@ -39,7 +39,7 @@ Markdown goes to stdout, errors to stderr, and `anydoc --help` covers the rest.
 ## Usage
 
 ```js
-import { toDocument, toMarkdown, toMarkdownBytes } from '@firecrawl/anydoc';
+import { toDocument, toMarkdown, toMarkdownBytes, toMarkdownPages } from '@firecrawl/anydoc';
 
 // From a file path:
 const markdown = await toMarkdown('report.docx');
@@ -52,6 +52,9 @@ const fromCsv = await toMarkdownBytes(bytes, 'csv');
 
 // Or stop at the document model, which also carries embedded assets:
 const document = await toDocument(bytes);
+
+// A PDF can also come out one page at a time, marking the pages that need OCR:
+const pages = await toMarkdownPages(bytes);
 ```
 
 ## Errors

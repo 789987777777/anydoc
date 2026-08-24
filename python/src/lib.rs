@@ -195,6 +195,37 @@ fn to_document(
     document::document(py, parsed)
 }
 
+/// One page of a PDF, from `to_markdown_pages`.
+#[pyclass(frozen, get_all, module = "anydoc")]
+struct Page {
+    /// 1-indexed page number.
+    number: u32,
+    /// What could be extracted from the page: unreliable or empty when it
+    /// needs OCR.
+    markdown: String,
+    /// The page is scanned or image-only and needs OCR, which anydoc does
+    /// not do.
+    needs_ocr: bool,
+}
+
+/// Convert a PDF to Markdown one page at a time, marking the pages that need
+/// OCR instead of raising for the document: for attributing output to its
+/// page, and for taking the text pages of a partly scanned document.
+///
+/// Unsupported for every other format.
+#[pyfunction]
+fn to_markdown_pages(py: Python<'_>, data: Vec<u8>) -> PyResult<Vec<Page>> {
+    let pages = py.detach(|| anydoc::to_markdown_pages(&data)).map_err(|e| convert_error(py, e))?;
+    Ok(pages
+        .into_iter()
+        .map(|page| Page {
+            number: page.number,
+            markdown: page.markdown,
+            needs_ocr: page.needs_ocr,
+        })
+        .collect())
+}
+
 /// Convert documents to GitHub-Flavored Markdown.
 #[pymodule]
 fn _anydoc(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -203,6 +234,7 @@ fn _anydoc(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format_from_path, m)?)?;
     m.add_function(wrap_pyfunction!(to_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(to_markdown_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(to_markdown_pages, m)?)?;
     m.add_function(wrap_pyfunction!(to_document, m)?)?;
     m.add_class::<document::Asset>()?;
     m.add_class::<document::Block>()?;
@@ -215,6 +247,7 @@ fn _anydoc(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<document::List>()?;
     m.add_class::<document::ListItem>()?;
     m.add_class::<document::Note>()?;
+    m.add_class::<Page>()?;
     m.add_class::<document::Style>()?;
     m.add_class::<document::Table>()?;
     m.add("ConvertError", m.py().get_type::<ConvertError>())?;

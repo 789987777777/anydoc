@@ -19,6 +19,7 @@ from anydoc._anydoc import (
     MissingPartError,
     NeedsOcrError,
     Note,
+    Page,
     ResourceLimitError,
     Style,
     Table,
@@ -29,6 +30,7 @@ from anydoc._anydoc import (
     to_document,
     to_markdown,
     to_markdown_bytes,
+    to_markdown_pages,
 )
 
 Format = Literal[
@@ -56,6 +58,7 @@ __all__ = [
     "MissingPartError",
     "NeedsOcrError",
     "Note",
+    "Page",
     "ResourceLimitError",
     "Style",
     "Table",
@@ -66,4 +69,5 @@ __all__ = [
     "to_document",
     "to_markdown",
     "to_markdown_bytes",
+    "to_markdown_pages",
 ]

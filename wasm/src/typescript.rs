@@ -41,6 +41,19 @@ export interface NeedsOcrError extends Error {
   pageCount: number
 }
 
+/** One page of a PDF, from `toMarkdownPages`. */
+export interface Page {
+  /** 1-indexed page number. */
+  number: number
+  /**
+   * What could be extracted from the page: unreliable or empty when it
+   * needs OCR.
+   */
+  markdown: string
+  /** The page is scanned or image-only and needs OCR, which anydoc does not do. */
+  needsOcr: boolean
+}
+
 export interface Document {
   blocks: Array<Block>
   /**

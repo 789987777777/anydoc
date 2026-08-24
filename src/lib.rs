@@ -138,6 +138,33 @@ pub fn to_document(
     formats::parse(bytes, resolve_format(bytes, format.into())?)
 }
 
+/// One page of a PDF, from [`to_markdown_pages`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Page {
+    /// 1-indexed page number.
+    pub number: u32,
+    /// What could be extracted from the page: unreliable or empty when it
+    /// needs OCR.
+    pub markdown: String,
+    /// The page is scanned or image-only and needs OCR, which anydoc does
+    /// not do.
+    pub needs_ocr: bool,
+}
+
+/// Convert a PDF to Markdown one page at a time, marking the pages that need
+/// OCR instead of failing the document: for attributing output to its page,
+/// and for taking the text pages of a partly scanned document.
+///
+/// Unsupported for every other format, which has no pages to speak of.
+pub fn to_markdown_pages(bytes: &[u8]) -> Result<Vec<Page>, ConvertError> {
+    match Format::from_bytes(bytes) {
+        Some(Format::Pdf) => formats::pdf::to_markdown_pages(bytes),
+        _ => Err(ConvertError::Unsupported(
+            "per-page output is for PDFs; use to_markdown_bytes".into(),
+        )),
+    }
+}
+
 fn resolve_format(bytes: &[u8], format: Option<Format>) -> Result<Format, ConvertError> {
     format.or_else(|| Format::from_bytes(bytes)).ok_or_else(|| {
         ConvertError::Unsupported("unrecognized file content: name the format explicitly".into())

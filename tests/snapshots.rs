@@ -127,6 +127,17 @@ fn scanned_pages_are_reported_not_dropped() {
     }
 }
 
+/// Per-page output keeps the text pages of a partly scanned document and
+/// marks the rest, where the whole-document conversion fails.
+#[test]
+fn pdf_pages_come_out_one_per_page() {
+    let mixed = std::fs::read(fixture_root().join("pdf/handmade-mixed.pdf")).unwrap();
+    let pages = anydoc::to_markdown_pages(&mixed).unwrap();
+    let flags: Vec<_> = pages.iter().map(|page| (page.number, page.needs_ocr)).collect();
+    assert_eq!(flags, [(1, false), (2, true)]);
+    assert!(pages[0].markdown.contains("Text on the first page"));
+}
+
 /// Embedded object payloads land in `Document::assets` with their identity
 /// and media type (the Markdown output shows only the alt text).
 #[test]

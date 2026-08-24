@@ -42,6 +42,9 @@ markdown = anydoc.to_markdown_bytes(data, "csv")
 
 # Or stop at the document model, which also carries embedded assets:
 document = anydoc.to_document(data)
+
+# A PDF can also come out one page at a time, marking the pages that need OCR:
+pages = anydoc.to_markdown_pages(data)
 ```
 
 ## Errors

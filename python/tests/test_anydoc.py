@@ -34,6 +34,11 @@ class AnydocTest(unittest.TestCase):
             anydoc.to_markdown_bytes(CSV.read_bytes())
         self.assertIn("| --- |", anydoc.to_markdown_bytes(CSV.read_bytes(), "csv"))
 
+    def test_to_markdown_pages_keeps_the_text_pages_of_a_partly_scanned_pdf(self):
+        pages = anydoc.to_markdown_pages(MIXED.read_bytes())
+        self.assertEqual([(page.number, page.needs_ocr) for page in pages], [(1, False), (2, True)])
+        self.assertIn("Text on the first page", pages[0].markdown)
+
     def test_to_document_exposes_the_document_model(self):
         document = anydoc.to_document(OUTLINE.read_bytes(), "docx")
         heading = next(block for block in document.blocks if block.kind == "heading")

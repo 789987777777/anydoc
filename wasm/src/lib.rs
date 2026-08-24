@@ -119,6 +119,24 @@ pub fn to_document(bytes: &[u8], format: Option<Format>) -> Result<JsValue, JsVa
         .map_err(|error| js_sys::Error::new(&error.to_string()).into())
 }
 
+/// Convert a PDF to Markdown one page at a time, marking the pages that need
+/// OCR instead of throwing for the document: for attributing output to its
+/// page, and for taking the text pages of a partly scanned document.
+///
+/// Unsupported for every other format.
+///
+/// Throws an `Error` carrying a `ConvertErrorCode` on `code`.
+#[wasm_bindgen(js_name = toMarkdownPages, unchecked_return_type = "Page[]")]
+pub fn to_markdown_pages(bytes: &[u8]) -> Result<JsValue, JsValue> {
+    let pages: Vec<Page> = anydoc::to_markdown_pages(bytes)
+        .map_err(convert_error)?
+        .into_iter()
+        .map(Page::from)
+        .collect();
+    serde_wasm_bindgen::to_value(&pages)
+        .map_err(|error| js_sys::Error::new(&error.to_string()).into())
+}
+
 /// The thrown value: a JS `Error` carrying the crate's message, with the
 /// variant name on `code` for callers to branch on, and for `needsOcr` the
 /// pages behind it.

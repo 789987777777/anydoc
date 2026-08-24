@@ -12,6 +12,7 @@ npm install @firecrawl/anydoc-wasm
 import init, {
   formatFromBytes,
   toMarkdownBytes,
+  toMarkdownPages,
   toDocument,
 } from '@firecrawl/anydoc-wasm';
 
@@ -25,6 +26,9 @@ const fromCsv = toMarkdownBytes(bytes, 'csv');
 
 // Or stop at the document model, which also carries embedded assets:
 const document = toDocument(bytes);
+
+// A PDF can also come out one page at a time, marking the pages that need OCR:
+const pages = toMarkdownPages(bytes);
 
 // Format detection on its own:
 formatFromBytes(bytes); // 'docx', or undefined when nothing matches

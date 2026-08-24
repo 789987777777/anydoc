@@ -135,6 +135,37 @@ pub fn to_document(bytes: Uint8Array, format: Option<Format>) -> AsyncTask<Docum
     })
 }
 
+/// One page of a PDF, from `toMarkdownPages`.
+#[napi(object)]
+pub struct Page {
+    /// 1-indexed page number.
+    pub number: u32,
+    /// What could be extracted from the page: unreliable or empty when it
+    /// needs OCR.
+    pub markdown: String,
+    /// The page is scanned or image-only and needs OCR, which anydoc does
+    /// not do.
+    pub needs_ocr: bool,
+}
+
+impl From<anydoc::Page> for Page {
+    fn from(page: anydoc::Page) -> Self {
+        Page { number: page.number, markdown: page.markdown, needs_ocr: page.needs_ocr }
+    }
+}
+
+/// Convert a PDF to Markdown one page at a time, marking the pages that need
+/// OCR instead of rejecting the document: for attributing output to its page,
+/// and for taking the text pages of a partly scanned document.
+///
+/// Unsupported for every other format.
+///
+/// Rejects with an `Error` carrying a `ConvertErrorCode` on `code`.
+#[napi(ts_return_type = "Promise<Page[]>")]
+pub fn to_markdown_pages(bytes: Uint8Array) -> AsyncTask<PagesTask> {
+    AsyncTask::new(PagesTask { bytes: bytes.to_vec(), failure: Failure::default() })
+}
+
 /// The kind of a failed conversion, held between the two threads a rejection
 /// crosses: `compute` runs on the libuv pool, where there is no `Env` to build
 /// a JS error with, and `reject` runs on the JS thread, where there is.
@@ -218,6 +249,28 @@ impl Task for MarkdownBytesTask {
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
         Ok(output)
+    }
+
+    fn reject(&mut self, env: Env, error: Error) -> Result<Self::JsValue> {
+        Err(self.failure.reject(env, error))
+    }
+}
+
+pub struct PagesTask {
+    bytes: Vec<u8>,
+    failure: Failure,
+}
+
+impl Task for PagesTask {
+    type Output = Vec<anydoc::Page>;
+    type JsValue = Vec<Page>;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        anydoc::to_markdown_pages(&self.bytes).map_err(|e| self.failure.capture(e))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output.into_iter().map(Page::from).collect())
     }
 
     fn reject(&mut self, env: Env, error: Error) -> Result<Self::JsValue> {

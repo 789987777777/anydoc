@@ -8,6 +8,7 @@
 //!
 //! [pdf-inspector]: https://github.com/firecrawl/pdf-inspector
 
+use crate::Page;
 use crate::error::ConvertError;
 use pdf_inspector::PdfError;
 
@@ -27,17 +28,36 @@ pub fn to_markdown(bytes: &[u8]) -> Result<String, ConvertError> {
         log::warn!("broken font encodings detected; extracted text may be garbled");
     }
     match result.markdown {
-        Some(mut markdown) if !markdown.trim().is_empty() => {
-            if !markdown.ends_with('\n') {
-                markdown.push('\n');
-            }
-            Ok(markdown)
-        }
+        Some(markdown) if !markdown.trim().is_empty() => Ok(terminated(markdown)),
         _ => Err(ConvertError::Unsupported(format!(
             "PDF has no extractable text ({:?}, {} pages)",
             result.pdf_type, result.page_count
         ))),
     }
+}
+
+pub fn to_markdown_pages(bytes: &[u8]) -> Result<Vec<Page>, ConvertError> {
+    let result = pdf_inspector::extract_pages_markdown_mem(bytes, None).map_err(map_error)?;
+    Ok(result
+        .pages
+        .into_iter()
+        .map(|page| Page {
+            number: page.page + 1,
+            markdown: if page.markdown.is_empty() {
+                page.markdown
+            } else {
+                terminated(page.markdown)
+            },
+            needs_ocr: page.needs_ocr,
+        })
+        .collect())
+}
+
+fn terminated(mut markdown: String) -> String {
+    if !markdown.ends_with('\n') {
+        markdown.push('\n');
+    }
+    markdown
 }
 
 fn map_error(e: PdfError) -> ConvertError {

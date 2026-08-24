@@ -5,6 +5,21 @@ use serde::Serialize;
 
 use anydoc::model;
 
+/// One page of a PDF, from `toMarkdownPages`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Page {
+    pub number: u32,
+    pub markdown: String,
+    pub needs_ocr: bool,
+}
+
+impl From<anydoc::Page> for Page {
+    fn from(page: anydoc::Page) -> Self {
+        Page { number: page.number, markdown: page.markdown, needs_ocr: page.needs_ocr }
+    }
+}
+
 #[derive(Serialize)]
 pub struct Document {
     pub blocks: Vec<Block>,
