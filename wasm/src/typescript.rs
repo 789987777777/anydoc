@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 const TYPESCRIPT: &str = r#"
 /**
  * `code` on the `Error` a failed conversion throws. Conversion fails only
- * when no meaningful Markdown could be produced; producer quirks are
+ * when no complete Markdown could be produced; producer quirks are
  * recovered or skipped instead. The crate's `io` code has no wasm
  * counterpart: there is no filesystem to read from.
  */

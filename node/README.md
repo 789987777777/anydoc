@@ -59,7 +59,7 @@ const pages = await toMarkdownPages(bytes);
 
 ## Errors
 
-A conversion rejects only when no meaningful Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
+A conversion rejects only when no complete Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
 
 ```js
 try {
