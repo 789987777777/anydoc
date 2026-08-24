@@ -69,7 +69,7 @@ On the CLI, `anydoc scan.pdf --ocr hosted`, with `--api-key` or `FIRECRAWL_API_K
 
 ## Errors
 
-A conversion rejects only when no meaningful Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
+A conversion rejects only when no complete Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
 
 ```js
 try {

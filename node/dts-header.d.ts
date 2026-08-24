@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * `code` on the `Error` a failed conversion rejects with. Conversion fails
- * only when no meaningful Markdown could be produced; producer quirks are
+ * only when no complete Markdown could be produced; producer quirks are
  * recovered or skipped instead.
  */
 export type ConvertErrorCode =

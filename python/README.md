@@ -57,7 +57,7 @@ markdown = anydoc.to_markdown("scan.pdf", ocr="hosted")
 
 ## Errors
 
-A conversion raises only when no meaningful Markdown could come out of the file. The exception type names what went wrong:
+A conversion raises only when no complete Markdown could come out of the file. The exception type names what went wrong:
 
 ```python
 try:
