@@ -715,3 +715,4 @@ module.exports.TableKind = nativeBinding.TableKind
 module.exports.toDocument = nativeBinding.toDocument
 module.exports.toMarkdown = nativeBinding.toMarkdown
 module.exports.toMarkdownBytes = nativeBinding.toMarkdownBytes
+module.exports.toMarkdownPages = nativeBinding.toMarkdownPages
