@@ -47,6 +47,14 @@ document = anydoc.to_document(data)
 pages = anydoc.to_markdown_pages(data)
 ```
 
+## Scanned pages
+
+anydoc does not do OCR: a PDF with scanned or image-only pages raises `NeedsOcrError` naming them. Pass `ocr="hosted"` to send such a document to [Firecrawl Parse](https://firecrawl.dev/parse) instead, through the [`firecrawl`](https://pypi.org/project/firecrawl/) package (`pip install 'firecrawl-anydoc[hosted]'`). The key comes from `api_key` or `FIRECRAWL_API_KEY`; without one the keyless tier applies, rate-limited per IP. Documents anydoc converts itself never leave the machine.
+
+```python
+markdown = anydoc.to_markdown("scan.pdf", ocr="hosted")
+```
+
 ## Errors
 
 A conversion raises only when no meaningful Markdown could come out of the file. The exception type names what went wrong:

@@ -21,6 +21,10 @@ classifiers = [
 # The version comes from Cargo.toml `package.version`.
 dynamic = ["version"]
 
+[project.optional-dependencies]
+# `ocr="hosted"`: pages that need OCR go to Firecrawl Parse through its SDK.
+hosted = ["firecrawl>=4"]
+
 [project.urls]
 Homepage = "https://github.com/firecrawl/anydoc#readme"
 Repository = "https://github.com/firecrawl/anydoc"
