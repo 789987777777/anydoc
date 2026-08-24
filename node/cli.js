@@ -21,13 +21,21 @@ Options:
                          ${FORMATS}
                          (extension aliases like xls, docm, ppsx resolve
                          to these)
+  --ocr <mode>           What to do with a PDF whose pages need OCR:
+                         reject (default) exits 3 naming them; hosted sends
+                         the document to Firecrawl Parse through the
+                         firecrawl package, which must be installed
+  --api-key <key>        Firecrawl API key for --ocr hosted, else
+                         FIRECRAWL_API_KEY; without either the keyless
+                         tier applies, rate-limited per IP
   -h, --help             Print this help and exit
   -V, --version          Print the version and exit
 
 The format is detected from the file content; the file extension is the
 fallback for signature-less formats (CSV). stdin has no extension, so CSV
 input from stdin needs --format csv. Scanned or image-only pages need OCR,
-which anydoc does not do: the document exits 3 naming them.
+which anydoc does not do: the document exits 3 naming them, or goes to
+Firecrawl Parse with --ocr hosted.
 
 Exit codes:
   0  success
@@ -40,7 +48,10 @@ Examples:
   anydoc slides.pptx -o slides.md
   anydoc - --format csv < data.csv
   curl -s https://example.com/paper.pdf | anydoc -
+  anydoc scan.pdf --ocr hosted
 `
+
+const OCR_MODES = ['reject', 'hosted']
 
 const USAGE_ERROR = 2
 const CONVERSION_ERROR = 1
@@ -52,7 +63,7 @@ function fail(code, message) {
 }
 
 function parseArgs(argv) {
-  const args = { input: null, output: null, format: null }
+  const args = { input: null, output: null, format: null, ocr: null, apiKey: null }
   let positionalOnly = false
   for (let i = 0; i < argv.length; i++) {
     let arg = argv[i]
@@ -97,6 +108,15 @@ function parseArgs(argv) {
       case '--format':
         args.format = value()
         break
+      case '--ocr':
+        args.ocr = value()
+        if (!OCR_MODES.includes(args.ocr)) {
+          fail(USAGE_ERROR, `invalid --ocr '${args.ocr}'; expected one of: ${OCR_MODES.join(', ')}`)
+        }
+        break
+      case '--api-key':
+        args.apiKey = value()
+        break
       default:
         fail(USAGE_ERROR, `unknown option '${arg}' (see anydoc --help)`)
     }
@@ -123,7 +143,7 @@ async function main() {
 
   // Loaded after argument handling so --help and --version work even where
   // no native binding is available.
-  const { formatFromExtension, toMarkdown, toMarkdownBytes } = require('./index.js')
+  const { formatFromExtension, toMarkdown, toMarkdownBytes } = require('./anydoc.js')
 
   let format
   if (args.format !== null) {
@@ -133,14 +153,15 @@ async function main() {
     }
   }
 
+  const options = { ocr: args.ocr ?? undefined, apiKey: args.apiKey ?? undefined }
   let markdown
   try {
     if (args.input === '-') {
-      markdown = await toMarkdownBytes(await readStdin(), format)
+      markdown = await toMarkdownBytes(await readStdin(), format, options)
     } else if (format !== undefined) {
-      markdown = await toMarkdownBytes(await readFile(args.input), format)
+      markdown = await toMarkdownBytes(await readFile(args.input), format, options)
     } else {
-      markdown = await toMarkdown(args.input)
+      markdown = await toMarkdown(args.input, options)
     }
   } catch (error) {
     fail(error.code === 'needsOcr' ? NEEDS_OCR : CONVERSION_ERROR, error.message)

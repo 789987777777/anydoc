@@ -57,6 +57,16 @@ const document = await toDocument(bytes);
 const pages = await toMarkdownPages(bytes);
 ```
 
+## Scanned pages
+
+anydoc does not do OCR: a PDF with scanned or image-only pages rejects with `needsOcr` naming them. Pass `ocr: 'hosted'` to send such a document to [Firecrawl Parse](https://firecrawl.dev/parse) instead, through the [`firecrawl`](https://www.npmjs.com/package/firecrawl) package (`npm install firecrawl`). The key comes from `apiKey` or `FIRECRAWL_API_KEY`; without one the keyless tier applies, rate-limited per IP. Documents anydoc converts itself never leave the machine.
+
+```js
+const markdown = await toMarkdown('scan.pdf', { ocr: 'hosted' });
+```
+
+On the CLI, `anydoc scan.pdf --ocr hosted`, with `--api-key` or `FIRECRAWL_API_KEY`.
+
 ## Errors
 
 A conversion rejects only when no meaningful Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:

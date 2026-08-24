@@ -30,6 +30,7 @@ The [skill](skills/convert-documents-to-markdown/SKILL.md) teaches the agent to 
 npx @firecrawl/anydoc report.docx               # Markdown to stdout
 npx @firecrawl/anydoc slides.pptx -o slides.md  # or to a file
 npx @firecrawl/anydoc - --format csv < data.csv # read stdin
+npx -p firecrawl -p @firecrawl/anydoc anydoc scan.pdf --ocr hosted  # scanned pages via Firecrawl Parse
 ```
 
 `npx` downloads the prebuilt binary for your platform on first run. For a permanent `anydoc` command, install globally with `npm install -g @firecrawl/anydoc`. Run `anydoc --help` for all options.

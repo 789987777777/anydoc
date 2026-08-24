@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,7 +17,7 @@ import {
   toMarkdown,
   toMarkdownBytes,
   toMarkdownPages,
-} from './index.js'
+} from './anydoc.js'
 
 const fixture = (name) => fileURLToPath(new URL(`../tests/fixtures/${name}`, import.meta.url))
 
@@ -101,6 +102,60 @@ test('toMarkdownPages keeps the text pages of a partly scanned pdf', async () =>
   assert.match(pages[0].markdown, /Text on the first page/)
 })
 
+test('the package exports everything the native binding does', async () => {
+  const [wrapper, native] = await Promise.all([import('./anydoc.js'), import('./index.js')])
+  assert.deepEqual(Object.keys(wrapper).sort(), Object.keys(native).sort())
+})
+
+// A stand-in for api.firecrawl.dev that answers every request with `reply`
+// and records the paths hit. Runs `run` keyless, whatever the environment.
+async function withHostedStub(reply, run) {
+  const hits = []
+  const server = createServer((request, response) => {
+    hits.push(request.url)
+    request.resume().on('end', () => {
+      response.writeHead(reply.status, { 'content-type': 'application/json' })
+      response.end(JSON.stringify(reply.body))
+    })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const url = `http://127.0.0.1:${server.address().port}`
+  const saved = { FIRECRAWL_API_URL: process.env.FIRECRAWL_API_URL, FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY }
+  process.env.FIRECRAWL_API_URL = url
+  delete process.env.FIRECRAWL_API_KEY
+  try {
+    await run(hits, url)
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+    server.close()
+  }
+}
+
+const HOSTED = { status: 200, body: { success: true, data: { markdown: '# Read by the hosted parser\n' } } }
+
+test("ocr: 'hosted' sends a pdf with scanned pages to Firecrawl Parse, and nothing else", async () => {
+  await withHostedStub(HOSTED, async (hits) => {
+    assert.equal(await toMarkdown(MIXED, { ocr: 'hosted' }), HOSTED.body.data.markdown)
+    assert.deepEqual(hits, ['/v2/parse'])
+    assert.match(await toMarkdown(OUTLINE, { ocr: 'hosted' }), /^# /m)
+    assert.deepEqual(hits, ['/v2/parse'])
+  })
+})
+
+test('the keyless limit says to set an api key', async () => {
+  const limited = { status: 429, body: { success: false, error: 'Rate limit exceeded' } }
+  await withHostedStub(limited, async () => {
+    await assert.rejects(toMarkdown(MIXED, { ocr: 'hosted' }), (error) => {
+      assert.equal(error.code, 'hosted')
+      assert.match(error.message, /set FIRECRAWL_API_KEY/)
+      return true
+    })
+  })
+})
+
 const CLI = fileURLToPath(new URL('./cli.js', import.meta.url))
 
 // execFile rejects on a non-zero exit; the error carries code/stdout/stderr.
@@ -146,8 +201,17 @@ test('cli exits 3 when pages need OCR', async () => {
   assert.match(stderr, /^anydoc: 1 of 2 pages need OCR/)
 })
 
+test('cli --ocr hosted converts a pdf with scanned pages through Firecrawl Parse', async () => {
+  await withHostedStub(HOSTED, async (hits, url) => {
+    const env = { ...process.env, FIRECRAWL_API_URL: url }
+    const { code, stdout } = await runCli([MIXED, '--ocr', 'hosted'], { env })
+    assert.equal(code, undefined)
+    assert.equal(stdout, HOSTED.body.data.markdown)
+  })
+})
+
 test('cli exits 2 on usage errors', async () => {
-  for (const args of [[], ['--frmat', 'csv', CSV], ['--format', 'nope', CSV], [OUTLINE, RICH]]) {
+  for (const args of [[], ['--frmat', 'csv', CSV], ['--format', 'nope', CSV], [OUTLINE, RICH], ['--ocr', 'cloud', MIXED]]) {
     const { code, stderr } = await runCli(args)
     assert.equal(code, 2)
     assert.match(stderr, /^anydoc: /)

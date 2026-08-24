@@ -22,12 +22,14 @@
     "converter",
     "document"
   ],
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "anydoc.js",
+  "types": "anydoc.d.ts",
   "bin": {
     "anydoc": "cli.js"
   },
   "files": [
+    "anydoc.js",
+    "anydoc.d.ts",
     "index.js",
     "index.d.ts",
     "cli.js",
@@ -58,7 +60,16 @@
     "test": "node --test",
     "version": "napi version"
   },
+  "peerDependencies": {
+    "firecrawl": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "firecrawl": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@napi-rs/cli": "^3.8.2"
+    "@napi-rs/cli": "^3.8.2",
+    "firecrawl": "^4.35.0"
   }
 }
