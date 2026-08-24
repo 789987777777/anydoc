@@ -2,9 +2,10 @@
 //!
 //! Unlike the other frontends, pdf-inspector emits Markdown itself, so PDFs
 //! bypass the document model and the shared GFM writer. OCR is out of scope
-//! here: a document with scanned or image-only pages errors naming them,
-//! whether that is every page or one of a hundred, because output missing
-//! those pages would read as complete.
+//! here. Whole-document conversion of a PDF with scanned or image-only pages
+//! errors naming them, whether that is every page or one of a hundred,
+//! because output missing those pages would read as complete; per-page
+//! output keeps the text pages and marks the rest instead.
 //!
 //! [pdf-inspector]: https://github.com/firecrawl/pdf-inspector
 
