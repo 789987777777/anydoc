@@ -32,6 +32,7 @@ The package ships an `anydoc` command, so `npx` converts a document with no inst
 npx @firecrawl/anydoc report.docx               # Markdown to stdout
 npx @firecrawl/anydoc slides.pptx -o slides.md  # or to a file
 npx @firecrawl/anydoc - --format csv < data.csv # read stdin
+npx @firecrawl/anydoc scan.pdf --ocr hosted     # scanned pages via Firecrawl Parse
 ```
 
 Markdown goes to stdout, errors to stderr, and `anydoc --help` covers the rest.
@@ -53,6 +54,16 @@ const fromCsv = await toMarkdownBytes(bytes, 'csv');
 // Or stop at the document model, which also carries embedded assets:
 const document = await toDocument(bytes);
 ```
+
+## Scanned pages
+
+anydoc converts locally and does not do OCR, so a PDF with scanned or image-only pages rejects with `needsOcr`. Opt in with `ocr: 'hosted'` to send that document to [Firecrawl Parse](https://firecrawl.dev/parse). No signup needed. Set `apiKey` or `FIRECRAWL_API_KEY` for higher limits.
+
+```js
+const markdown = await toMarkdown('scan.pdf', { ocr: 'hosted' });
+```
+
+On the CLI, `anydoc scan.pdf --ocr hosted`.
 
 ## Errors
 
@@ -80,6 +91,7 @@ try {
 | `resourceLimit` | Crossed a fixed safety limit (decompression, nesting, node count)   |
 | `missingPart`   | A part required for any meaningful output is absent                 |
 | `io`            | The file could not be read, from `toMarkdown` only                  |
+| `hosted`        | `ocr: 'hosted'` could not get the document through Firecrawl Parse  |
 
 `error.message` carries the detail, naming the package part at fault where the format identifies one. TypeScript gets the union as `ConvertErrorCode`.
 

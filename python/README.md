@@ -44,6 +44,14 @@ markdown = anydoc.to_markdown_bytes(data, "csv")
 document = anydoc.to_document(data)
 ```
 
+## Scanned pages
+
+anydoc converts locally and does not do OCR, so a PDF with scanned or image-only pages raises `NeedsOcrError`. Opt in with `ocr="hosted"` to send that document to [Firecrawl Parse](https://firecrawl.dev/parse). No signup needed. Set `api_key` or `FIRECRAWL_API_KEY` for higher limits.
+
+```python
+markdown = anydoc.to_markdown("scan.pdf", ocr="hosted")
+```
+
 ## Errors
 
 A conversion raises only when no complete Markdown could come out of the file. The exception type names what went wrong:
@@ -65,6 +73,7 @@ except (anydoc.EncryptedError, anydoc.UnsupportedError) as error:
 | `EncryptedError`     | Encrypted or password-protected                                     |
 | `ResourceLimitError` | Crossed a fixed safety limit (decompression, nesting, node count)   |
 | `MissingPartError`   | A part required for any meaningful output is absent                 |
+| `HostedError`        | `ocr="hosted"` could not get the document through Firecrawl Parse   |
 | `OSError`            | The file could not be read, from `to_markdown` only                 |
 
 Every conversion failure subclasses `anydoc.ConvertError`, so catching that handles all of them at once. `MalformedError.part` and `MissingPartError.part` name the package part at fault, `ResourceLimitError.limit` names the limit crossed, and `str(error)` carries the whole message. A `format` argument naming no supported format raises `ValueError`.

@@ -22,12 +22,14 @@
     "converter",
     "document"
   ],
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "anydoc.js",
+  "types": "anydoc.d.ts",
   "bin": {
     "anydoc": "cli.js"
   },
   "files": [
+    "anydoc.js",
+    "anydoc.d.ts",
     "index.js",
     "index.d.ts",
     "cli.js",

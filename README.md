@@ -30,6 +30,7 @@ The [skill](skills/convert-documents-to-markdown/SKILL.md) teaches the agent to 
 npx @firecrawl/anydoc report.docx               # Markdown to stdout
 npx @firecrawl/anydoc slides.pptx -o slides.md  # or to a file
 npx @firecrawl/anydoc - --format csv < data.csv # read stdin
+npx @firecrawl/anydoc scan.pdf --ocr hosted     # scanned pages via Firecrawl Parse
 ```
 
 `npx` downloads the prebuilt binary for your platform on first run. For a permanent `anydoc` command, install globally with `npm install -g @firecrawl/anydoc`. Run `anydoc --help` for all options.
@@ -231,6 +232,8 @@ match anydoc::to_markdown(path) {
 | `Io`            | The file could not be read, from `to_markdown` only                 |
 
 Node and wasm publish the variant name on `error.code`; Python raises one `anydoc.ConvertError` subclass per variant, or `OSError` when the file cannot be read.
+
+anydoc converts locally and does not do OCR, so a PDF with scanned pages fails with `NeedsOcr`. Opt in with `ocr: 'hosted'` in Node, `ocr="hosted"` in Python or `--ocr hosted` on the CLI to send that document to [Firecrawl Parse](https://firecrawl.dev/parse). No signup needed. Set `FIRECRAWL_API_KEY` for higher limits.
 
 ## How it works
 

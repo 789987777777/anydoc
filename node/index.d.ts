@@ -23,6 +23,8 @@ export type ConvertErrorCode =
   | 'missingPart'
   /** The file could not be read, from `toMarkdown` only. */
   | 'io'
+  /** `ocr: 'hosted'` could not get the document through Firecrawl Parse. */
+  | 'hosted'
 
 /** The rejection for a PDF with pages that need OCR. */
 export interface NeedsOcrError extends Error {
