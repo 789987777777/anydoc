@@ -202,13 +202,17 @@ The same three functions exist in Node (`formatFromBytes`, ...) and Python (`any
 
 ## Errors
 
-A conversion returns `Err` only when no meaningful Markdown could come out of the file. `ConvertError` names what went wrong:
+A conversion returns `Err` only when no complete Markdown could come out of the file. `ConvertError` names what went wrong:
 
 ```rust
 match anydoc::to_markdown(path) {
     Ok(markdown) => Some(markdown),
     // No document comes out of these, so record the file and take the next one.
-    Err(error @ (ConvertError::Encrypted | ConvertError::Unsupported(_))) => {
+    Err(
+        error @ (ConvertError::Encrypted
+        | ConvertError::Unsupported(_)
+        | ConvertError::NeedsOcr { .. }),
+    ) => {
         unconverted.push((path, error));
         None
     }
@@ -218,7 +222,8 @@ match anydoc::to_markdown(path) {
 
 | Variant         | Meaning                                                             |
 | --------------- | ------------------------------------------------------------------- |
-| `Unsupported`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `Unsupported`   | Unknown format, or one that cannot be converted                     |
+| `NeedsOcr`      | Scanned or image-only pages of a PDF, listed in `pages`             |
 | `Malformed`     | Structurally unusable: no meaningful content could be extracted     |
 | `Encrypted`     | Encrypted or password-protected                                     |
 | `ResourceLimit` | Crossed a fixed safety limit (decompression, nesting, node count)   |

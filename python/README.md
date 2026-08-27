@@ -46,7 +46,7 @@ document = anydoc.to_document(data)
 
 ## Errors
 
-A conversion raises only when no meaningful Markdown could come out of the file. The exception type names what went wrong:
+A conversion raises only when no complete Markdown could come out of the file. The exception type names what went wrong:
 
 ```python
 try:
@@ -59,14 +59,15 @@ except (anydoc.EncryptedError, anydoc.UnsupportedError) as error:
 
 | Exception            | Raised when                                                         |
 | -------------------- | ------------------------------------------------------------------- |
-| `UnsupportedError`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `UnsupportedError`   | Unknown format, or one that cannot be converted                     |
+| `NeedsOcrError`      | Scanned or image-only pages of a PDF, listed in `pages`             |
 | `MalformedError`     | Structurally unusable: no meaningful content could be extracted     |
 | `EncryptedError`     | Encrypted or password-protected                                     |
 | `ResourceLimitError` | Crossed a fixed safety limit (decompression, nesting, node count)   |
 | `MissingPartError`   | A part required for any meaningful output is absent                 |
 | `OSError`            | The file could not be read, from `to_markdown` only                 |
 
-The five conversion failures subclass `anydoc.ConvertError`, so catching that handles all of them at once. `MalformedError.part` and `MissingPartError.part` name the package part at fault, `ResourceLimitError.limit` names the limit crossed, and `str(error)` carries the whole message. A `format` argument naming no supported format raises `ValueError`.
+Every conversion failure subclasses `anydoc.ConvertError`, so catching that handles all of them at once. `MalformedError.part` and `MissingPartError.part` name the package part at fault, `ResourceLimitError.limit` names the limit crossed, and `str(error)` carries the whole message. A `format` argument naming no supported format raises `ValueError`.
 
 ## Format detection
 

@@ -56,7 +56,7 @@ const document = await toDocument(bytes);
 
 ## Errors
 
-A conversion rejects only when no meaningful Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
+A conversion rejects only when no complete Markdown could come out of the file. The rejection is an `Error` whose `code` names what went wrong:
 
 ```js
 try {
@@ -73,7 +73,8 @@ try {
 
 | `code`          | Meaning                                                             |
 | --------------- | ------------------------------------------------------------------- |
-| `unsupported`   | Unknown format, or one that cannot be converted (an image-only PDF) |
+| `unsupported`   | Unknown format, or one that cannot be converted                     |
+| `needsOcr`      | Scanned or image-only pages of a PDF, listed in `pages`             |
 | `malformed`     | Structurally unusable: no meaningful content could be extracted     |
 | `encrypted`     | Encrypted or password-protected                                     |
 | `resourceLimit` | Crossed a fixed safety limit (decompression, nesting, node count)   |
