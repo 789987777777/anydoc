@@ -83,7 +83,7 @@ test('conversion errors throw a coded Error', () => {
   throws(() => toMarkdownBytes(CSV), 'unsupported', /unrecognized file content/)
   throws(() => toMarkdownBytes(ENCRYPTED, 'odt'), 'encrypted', /encrypted/)
   throws(() => toDocument(ENCRYPTED, 'odt'), 'encrypted', /encrypted/)
-  throws(() => toMarkdownBytes(MIXED), 'needsOcr', /1 of 2 pages need OCR/)
+  throws(() => toMarkdownBytes(MIXED), 'needsOcr', /page 2 of 2 needs OCR/)
 })
 
 test('a pdf with scanned pages throws naming them instead of dropping them', () => {

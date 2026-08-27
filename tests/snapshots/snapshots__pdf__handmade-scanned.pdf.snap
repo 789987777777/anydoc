@@ -2,4 +2,4 @@
 source: tests/snapshots.rs
 expression: output
 ---
-ERROR: 2 of 2 pages need OCR
+ERROR: all 2 pages need OCR

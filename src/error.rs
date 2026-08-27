@@ -55,9 +55,13 @@ impl fmt::Display for ConvertError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConvertError::Unsupported(what) => write!(f, "unsupported input: {what}"),
-            ConvertError::NeedsOcr { pages, page_count } => {
-                write!(f, "{} of {page_count} pages need OCR", pages.len())
-            }
+            ConvertError::NeedsOcr { pages, page_count } => match pages.as_slice() {
+                [page] => write!(f, "page {page} of {page_count} needs OCR"),
+                _ if pages.len() as u32 >= *page_count => {
+                    write!(f, "all {page_count} pages need OCR")
+                }
+                _ => write!(f, "pages {} of {page_count} need OCR", page_ranges(pages)),
+            },
             ConvertError::Malformed { part: Some(part), detail } => {
                 write!(f, "malformed document ({part}): {detail}")
             }
@@ -120,9 +124,32 @@ impl ConvertError {
     }
 }
 
+/// `2, 5-7, 12` from ascending page numbers.
+fn page_ranges(pages: &[u32]) -> String {
+    let mut ranges = Vec::new();
+    let mut pages = pages.iter().copied().peekable();
+    while let Some(start) = pages.next() {
+        let mut end = start;
+        while pages.next_if_eq(&(end + 1)).is_some() {
+            end += 1;
+        }
+        ranges.push(if end > start { format!("{start}-{end}") } else { start.to_string() });
+    }
+    ranges.join(", ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The CLI shows only the message, so it has to name the pages.
+    #[test]
+    fn needs_ocr_names_the_pages() {
+        let scattered = ConvertError::NeedsOcr { pages: vec![2, 5, 6, 7, 12], page_count: 20 };
+        assert_eq!(scattered.to_string(), "pages 2, 5-7, 12 of 20 need OCR");
+        let all = ConvertError::NeedsOcr { pages: vec![1, 2], page_count: 2 };
+        assert_eq!(all.to_string(), "all 2 pages need OCR");
+    }
 
     /// The bindings publish these verbatim as `error.code`, so changing one
     /// breaks every caller that branches on it.

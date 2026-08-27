@@ -15,8 +15,9 @@ pub fn to_markdown(bytes: &[u8]) -> Result<String, ConvertError> {
     let result = pdf_inspector::process_pdf_mem(bytes).map_err(map_error)?;
     if !result.pages_needing_ocr.is_empty() {
         // Detection samples content streams and over-reports short or
-        // image-heavy text pages; extraction knows which pages yielded none.
-        let pages = pdf_inspector::extract_pages_markdown_mem(bytes, None)
+        // image-heavy text pages; extraction knows which of them yielded none.
+        let flagged: Vec<u32> = result.pages_needing_ocr.iter().map(|page| page - 1).collect();
+        let pages = pdf_inspector::extract_pages_markdown_mem(bytes, Some(&flagged))
             .map_err(map_error)?
             .pages_needing_ocr;
         if !pages.is_empty() {
