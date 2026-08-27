@@ -52,7 +52,7 @@ async function parseHosted(bytes, filename, options) {
   let reply
   try {
     response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) })
-    reply = await response.json().catch(() => ({}))
+    reply = (await response.json().catch(() => null)) ?? {}
   } catch (error) {
     throw hostedError(`Firecrawl Parse: ${error.message}`, error)
   }
@@ -60,7 +60,7 @@ async function parseHosted(bytes, filename, options) {
     throw hostedError(describe(response.status, reply.error ?? response.statusText, Boolean(apiKey)))
   }
   const markdown = reply.data?.markdown
-  if (!markdown) throw hostedError('Firecrawl Parse returned no Markdown')
+  if (typeof markdown !== 'string' || !markdown) throw hostedError('Firecrawl Parse returned no Markdown')
   return markdown.endsWith('\n') ? markdown : `${markdown}\n`
 }
 

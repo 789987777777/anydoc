@@ -106,7 +106,8 @@ _TIMEOUT_SECONDS = 300
 # The whole document goes, not only the pages that need OCR: Parse has no
 # page selection.
 def _parse_hosted(data: bytes, filename: str, api_key: "str | None", api_url: "str | None") -> str:
-    api_key = api_key or os.environ.get("FIRECRAWL_API_KEY")
+    if api_key is None:
+        api_key = os.environ.get("FIRECRAWL_API_KEY")
     api_url = api_url or os.environ.get("FIRECRAWL_API_URL") or _API_URL
     url = api_url.rstrip("/") + "/v2/parse"
     options = {"parsers": [{"type": "pdf", "mode": "auto"}], "origin": f"anydoc@{_version()}"}
@@ -129,8 +130,9 @@ def _parse_hosted(data: bytes, filename: str, api_key: "str | None", api_url: "s
     if status != 200 or not reply.get("success"):
         detail = reply.get("error") or f"HTTP {status}"
         raise HostedError(_describe(status, detail, bool(api_key)))
-    markdown = (reply.get("data") or {}).get("markdown")
-    if not markdown:
+    data = reply.get("data")
+    markdown = data.get("markdown") if isinstance(data, dict) else None
+    if not isinstance(markdown, str) or not markdown:
         raise HostedError("Firecrawl Parse returned no Markdown")
     return markdown if markdown.endswith("\n") else markdown + "\n"
 
