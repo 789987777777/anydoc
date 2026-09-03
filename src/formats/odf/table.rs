@@ -39,6 +39,12 @@ fn parse_table_with_source(
         next_source_row: 0,
         checkboxes: read_checkboxes(elem),
     };
+    // A spreadsheet merge is real source extent even when its final rows
+    // contain only covered cells. Ordinary ODF tables keep the historical
+    // trailing-covered-row trim, so enable this only for spreadsheet tables.
+    if source.is_some() {
+        state.builder.keep_covered_tail();
+    }
     walk_rows(elem, ctx, &mut state, true)?;
     let mut table = state.builder.finish(TableKind::Data);
     if table.grid.is_empty() {

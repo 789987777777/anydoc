@@ -367,6 +367,34 @@ mod tests {
     }
 
     #[test]
+    fn spreadsheet_merge_source_survives_a_covered_tail() {
+        let content = spreadsheet_doc(
+            r#"<table:table table:name="Trailing Merge">
+                <table:table-row>
+                  <table:table-cell office:value-type="string" office:string-value="origin" table:number-rows-spanned="3"/>
+                </table:table-row>
+                <table:table-row><table:covered-table-cell/></table:table-row>
+                <table:table-row><table:covered-table-cell/></table:table-row>
+              </table:table>"#,
+        );
+        let doc = parse(&odt_with_content(&content)).unwrap();
+        let Block::Table(table) = &doc.blocks[0] else {
+            panic!("expected one spreadsheet table");
+        };
+        let source = table.source.as_ref().expect("spreadsheet source");
+        assert_eq!(source.sheet_name, "Trailing Merge");
+        assert_eq!(source.range, SpreadsheetRange::new(0, 0, 2, 0));
+        assert_eq!(table.grid.len(), 3);
+        let CellSlot::Origin(origin) = &table.grid[0][0] else {
+            panic!("expected the merged origin");
+        };
+        assert_eq!(origin.row_span, 3);
+        assert_eq!(origin.source, Some(SpreadsheetRange::new(0, 0, 2, 0)));
+        assert!(matches!(table.grid[1][0], CellSlot::Covered { .. }));
+        assert!(matches!(table.grid[2][0], CellSlot::Covered { .. }));
+    }
+
+    #[test]
     fn resource_limit_in_manifest_is_fatal() {
         let mut manifest = Vec::new();
         for _ in 0..(crate::package::limits::MAX_XML_DEPTH + 2) {
