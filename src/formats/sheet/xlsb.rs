@@ -132,9 +132,11 @@ fn read_optional<T: Default>(
     }
 }
 
+type SheetInfo = (u32, String, String);
+
 /// `xl/workbook.bin`: the 1904 date flag from BrtWbProp, and each visible
 /// sheet's source-order index, name, and relationship id from its BrtBundleSh.
-fn read_workbook(data: &[u8]) -> Result<(bool, Vec<(u32, String, String)>), ConvertError> {
+fn read_workbook(data: &[u8]) -> Result<(bool, Vec<SheetInfo>), ConvertError> {
     let mut date1904 = false;
     let mut sheets = Vec::new();
     let mut sheet_index = 0u32;
