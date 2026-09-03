@@ -89,7 +89,8 @@ class AnydocTest(unittest.TestCase):
 
     def test_to_document_exposes_spreadsheet_source_coordinates(self):
         document = anydoc.to_document(SPREADSHEET.read_bytes(), "xlsx")
-        table = next(block.table for block in document.blocks if block.kind == "table")
+        table = next((block.table for block in document.blocks if block.kind == "table"), None)
+        self.assertIsNotNone(table, "spreadsheet fixture did not produce a table")
         self.assertEqual(table.source.sheet_index, 0)
         self.assertEqual(table.source.sheet_name, "Merged")
         self.assertEqual((table.source.range.start.row, table.source.range.start.column), (0, 0))
@@ -112,7 +113,8 @@ class AnydocTest(unittest.TestCase):
         )
 
         docx = anydoc.to_document(RICH.read_bytes(), "docx")
-        docx_table = next(block.table for block in docx.blocks if block.kind == "table")
+        docx_table = next((block.table for block in docx.blocks if block.kind == "table"), None)
+        self.assertIsNotNone(docx_table, "DOCX fixture did not produce a table")
         self.assertIsNone(docx_table.source)
 
     def test_to_document_carries_embedded_assets_as_bytes(self):
