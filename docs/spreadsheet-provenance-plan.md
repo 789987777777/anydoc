@@ -1,7 +1,7 @@
 # Spreadsheet provenance implementation plan
 
 This plan implements `docs/spreadsheet-provenance-spec.md` on the
-`codex/spreadsheet-provenance` branch.
+`feat/sheet-provenance` branch.
 
 ## Allowed scope
 
