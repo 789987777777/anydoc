@@ -490,7 +490,15 @@ pub(super) fn build_table(
     for &(mr1, mc1, mr2, mc2) in &sheet.merges {
         let (r0, rn) = visible_span(&row_map, mr1, mr2);
         let (c0, cn) = visible_span(&col_map, mc1, mc2);
+        if rn == 0 || cn == 0 {
+            continue;
+        }
+        let source = SpreadsheetRange::new(mr1, mc1, mr2, mc2);
         if rn * cn <= 1 {
+            // A merge can collapse to one visible slot when its other rows or
+            // columns are hidden. It no longer needs covered markers, but the
+            // origin still represents the complete source merge rectangle.
+            origins.insert((r0, c0), MergeOrigin { col_span: 1, row_span: 1, source });
             continue;
         }
         expansion = expansion.saturating_add((rn as u64) * (cn as u64) - 1);
@@ -500,14 +508,7 @@ pub(super) fn build_table(
                 detail: "merge region expansion exceeds the content budget".into(),
             });
         }
-        origins.insert(
-            (r0, c0),
-            MergeOrigin {
-                col_span: cn as u32,
-                row_span: rn as u32,
-                source: SpreadsheetRange::new(mr1, mc1, mr2, mc2),
-            },
-        );
+        origins.insert((r0, c0), MergeOrigin { col_span: cn as u32, row_span: rn as u32, source });
         for r in r0..r0 + rn {
             for c in c0..c0 + cn {
                 if (r, c) != (r0, c0) {
@@ -1060,6 +1061,29 @@ mod tests {
         assert_eq!((cell.col_span, cell.row_span), (2, 1));
         assert_eq!(cell.source, Some(SpreadsheetRange::new(0, 0, 0, 2)));
         assert_eq!(table.grid[0].len(), 3);
+    }
+
+    #[test]
+    fn collapsed_merges_keep_their_original_source_range() {
+        // Both the second column and second row are hidden, so A1:B2
+        // normalizes to a single visible slot. Provenance must still identify
+        // the complete source merge rather than degrading to A1:A1.
+        let wb = one_sheet(
+            r#"<cols><col min="2" max="2" hidden="1"/></cols><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>merged</t></is></c></row><row r="2" hidden="1"/></sheetData><mergeCells count="1"><mergeCell ref="A1:B2"/></mergeCells>"#,
+        );
+        let doc = parse(&wb.build()).unwrap();
+        let table = first_table(&doc);
+        assert_eq!(table.grid.len(), 1);
+        assert_eq!(table.grid[0].len(), 1);
+        assert_eq!(
+            table.source.as_ref().expect("spreadsheet source").range,
+            SpreadsheetRange::new(0, 0, 1, 1)
+        );
+        let CellSlot::Origin(cell) = &table.grid[0][0] else {
+            panic!("expected the collapsed merge origin");
+        };
+        assert_eq!((cell.col_span, cell.row_span), (1, 1));
+        assert_eq!(cell.source, Some(SpreadsheetRange::new(0, 0, 1, 1)));
     }
 
     #[test]
